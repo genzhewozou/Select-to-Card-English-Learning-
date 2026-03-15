@@ -1,0 +1,9 @@
+# 开发环境示例：可覆盖数据库等配置
+# 使用方式：spring.profiles.active=dev
+spring:
+  datasource:
+    url: xxx
+    username: xxx
+    password: xxx
+  jpa:
+    show-sql: true

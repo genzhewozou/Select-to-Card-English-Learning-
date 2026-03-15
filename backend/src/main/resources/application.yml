@@ -1,0 +1,43 @@
+# 英语学习系统 - 应用配置
+# 遵循阿里巴巴开发规范，敏感信息建议使用环境变量或配置中心
+spring:
+  application:
+    name: english-learning-backend
+  datasource:
+    # serverTimezone=Asia/Shanghai：与 Java LocalDateTime 及「今日复习」SQL 中 NOW() 统一为东八区，避免已过期卡片查不出
+    url: xxx
+    username: xxx
+    password: xxx
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      connection-timeout: 20000
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        format_sql: true
+    open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+# 服务端口
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+# 日志
+logging:
+  level:
+    root: INFO
+    com.english.learn: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

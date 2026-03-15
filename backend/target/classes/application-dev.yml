@@ -1,0 +1,9 @@
+# 开发环境示例：可覆盖数据库等配置
+# 使用方式：spring.profiles.active=dev
+spring:
+  datasource:
+    url: jdbc:mysql://gateway01.us-west-2.prod.aws.tidbcloud.com:4000/github_sample?useSSL=true&requireSSL=true&trustServerCertificate=true&serverTimezone=UTC&characterEncoding=utf8
+    username: 3jLiSiFakSm1n24.root
+    password: 58tAQ9693GKdgzdG
+  jpa:
+    show-sql: true
