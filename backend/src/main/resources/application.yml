@@ -5,8 +5,8 @@ spring:
     name: english-learning-backend
   datasource:
     # serverTimezone=Asia/Shanghai：与 Java LocalDateTime 及「今日复习」SQL 中 NOW() 统一为东八区，避免已过期卡片查不出
-    url: xxx
-    username: xxx
+    url: jdbc:mysql://127.0.0.1:3306/english_learning?useSSL=false&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    username: root
     password: xxx
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:

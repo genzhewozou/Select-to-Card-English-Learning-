@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Button, Card, message, Modal, Input, Switch } from 'antd';
+import { Button, Card, message, Modal, Input, Switch, Pagination } from 'antd';
 import { getDocument } from '../services/documentService';
 import { createCard, getCardList } from '../services/cardService';
 import { generateNote } from '../services/aiService';
@@ -10,8 +10,12 @@ import type { CardDTO, DocumentDTO } from '../types/api';
 /**
  * 文档查看页：展示文档纯文本内容。
  * 顶部可控制是否开启 AI 注释；选中文本后打开“生成卡片”弹窗时，若已开启 AI 则立即调 AI 生成注释并填入弹窗，用户可编辑后再创建卡片。
+ * 展示时按段落与换行渲染，不影响卡片 startOffset/endOffset（仍基于 doc.content 字符偏移）。
  */
 type DocSegment = { type: 'text'; content: string } | { type: 'card'; content: string; cardId: number };
+
+/** 每页展示行数（按 \n 拆行，前端直接分页） */
+const LINES_PER_PAGE = 40;
 
 export default function DocumentView() {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +32,7 @@ export default function DocumentView() {
   const [createLoading, setCreateLoading] = useState(false);
   const [selectedOffsets, setSelectedOffsets] = useState<{ start: number; end: number } | null>(null);
   const [docCards, setDocCards] = useState<CardDTO[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const docId = id ? Number(id) : 0;
 
@@ -75,15 +80,68 @@ export default function DocumentView() {
     return segments;
   }, [doc?.content, highlightRanges]);
 
-  /** 从卡片编辑页「在文档中定位」跳转时滚动到对应高亮 */
+  /** 按行分页：先按 \n 拆成行，每页 LINES_PER_PAGE 行，得到每页的字符区间 */
+  const pageRanges = useMemo((): { start: number; end: number }[] => {
+    if (!doc?.content) return [];
+    const content = doc.content;
+    const lines = content.split('\n');
+    const lineOffsets: number[] = [0];
+    let pos = 0;
+    for (let i = 0; i < lines.length - 1; i++) {
+      pos += lines[i].length + 1;
+      lineOffsets.push(pos);
+    }
+    const ranges: { start: number; end: number }[] = [];
+    for (let startLine = 0; startLine < lines.length; startLine += LINES_PER_PAGE) {
+      const endLine = Math.min(startLine + LINES_PER_PAGE, lines.length);
+      const pageStart = lineOffsets[startLine];
+      const pageEnd = endLine < lines.length ? lineOffsets[endLine] : content.length;
+      ranges.push({ start: pageStart, end: pageEnd });
+    }
+    if (ranges.length === 0) ranges.push({ start: 0, end: content.length });
+    return ranges;
+  }, [doc?.content]);
+
+  const totalPages = Math.max(1, pageRanges.length);
+  const currentRange = pageRanges[currentPage - 1] ?? pageRanges[0];
+
+  /** 当前页内的 segments（文本与卡片高亮均内联展示，选中词不单独成行） */
+  const pageSegments = useMemo((): DocSegment[] => {
+    if (!doc?.content || !currentRange) return [];
+    const { start: pageStart, end: pageEnd } = currentRange;
+    const content = doc.content;
+    const ranges = highlightRanges.filter((r) => r.end > pageStart && r.start < pageEnd);
+    if (ranges.length === 0) return [{ type: 'text', content: content.slice(pageStart, pageEnd) }];
+    const segs: DocSegment[] = [];
+    let pos = pageStart;
+    for (const r of ranges) {
+      const rStart = Math.max(r.start, pageStart);
+      const rEnd = Math.min(r.end, pageEnd);
+      if (rStart > pos) segs.push({ type: 'text', content: content.slice(pos, rStart) });
+      segs.push({ type: 'card', content: content.slice(rStart, rEnd), cardId: r.cardId });
+      pos = rEnd;
+    }
+    if (pos < pageEnd) segs.push({ type: 'text', content: content.slice(pos, pageEnd) });
+    return segs;
+  }, [doc?.content, highlightRanges, currentRange]);
+
+  /** 从卡片编辑页「在文档中定位」时切到卡片所在页 */
   useEffect(() => {
-    const hash = location.hash;
-    if (hash.startsWith('#card-')) {
-      const cardId = hash.slice(6);
+    if (!location.hash.startsWith('#card-') || pageRanges.length === 0) return;
+    const cardId = location.hash.slice(6);
+    const card = docCards.find((c) => String(c.id) === cardId);
+    if (!card?.id) return;
+    const content = doc?.content ?? '';
+    let cardStart = content.length;
+    if (card.startOffset != null && card.endOffset != null) cardStart = card.startOffset;
+    else if (card.frontContent) { const i = content.indexOf(card.frontContent); if (i >= 0) cardStart = i; }
+    const pageIndex = pageRanges.findIndex((r) => r.start <= cardStart && r.end > cardStart);
+    if (pageIndex >= 0) setCurrentPage(pageIndex + 1);
+    setTimeout(() => {
       const el = document.getElementById(`card-${cardId}`);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [location.hash, docSegments.length]);
+    }, 100);
+  }, [location.hash, pageRanges, doc?.content, docCards]);
 
   /** 从文档内容中取出包含选中文本的段落，作为 AI 上下文 */
   function getParagraphContainingSelection(fullText: string, selected: string): string {
@@ -101,6 +159,7 @@ export default function DocumentView() {
   useEffect(() => {
     if (!docId) return;
     setLoading(true);
+    setCurrentPage(1);
     Promise.all([getDocument(docId), getCardList({ documentId: docId })])
       .then(([documentData, cards]) => {
         setDoc(documentData);
@@ -217,33 +276,72 @@ export default function DocumentView() {
       <Card title={doc.fileName}>
         <div
           role="article"
-          style={{ whiteSpace: 'pre-wrap', minHeight: 400, userSelect: 'text' }}
+          className="doc-content"
+          style={{
+            minHeight: 360,
+            userSelect: 'text',
+            width: '100%',
+            lineHeight: 1.8,
+            fontSize: 15,
+            color: '#333',
+            padding: '8px 0',
+          }}
           onMouseUp={handleMouseUp}
         >
           {doc.content ? (
-            docSegments.map((seg, i) =>
-              seg.type === 'text' ? (
-                <span key={i}>{seg.content}</span>
-              ) : (
-                <span
-                  key={i}
-                  id={`card-${seg.cardId}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={(e) => { e.preventDefault(); navigate(`/cards/${seg.cardId}/edit`); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/cards/${seg.cardId}/edit`); } }}
-                  style={{ backgroundColor: 'rgba(24, 144, 255, 0.2)', cursor: 'pointer', borderRadius: 2 }}
-                  title="点击编辑卡片"
-                >
-                  {seg.content}
-                </span>
-              )
+            pageSegments.length > 0 ? (
+              <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {pageSegments.map((seg, i) =>
+                  seg.type === 'text' ? (
+                    <span key={i}>
+                      {seg.content.split('\n').map((line, j) => (
+                        <span key={j}>
+                          {line}
+                          {j < seg.content.split('\n').length - 1 ? <br /> : null}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span
+                      key={i}
+                      id={`card-${seg.cardId}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.preventDefault(); navigate(`/cards/${seg.cardId}/edit`); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/cards/${seg.cardId}/edit`); } }}
+                      style={{
+                        backgroundColor: 'rgba(24, 144, 255, 0.22)',
+                        cursor: 'pointer',
+                        borderRadius: 3,
+                        padding: '0 2px',
+                      }}
+                      title="点击编辑卡片"
+                    >
+                      {seg.content}
+                    </span>
+                  )
+                )}
+              </div>
+            ) : (
+              <div style={{ color: '#999' }}>（无内容）</div>
             )
           ) : (
             '（无内容）'
           )}
         </div>
-        <p style={{ marginTop: 12, color: '#666' }}>
+        {totalPages > 1 && (
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Pagination
+              current={currentPage}
+              total={totalPages}
+              pageSize={1}
+              showSizeChanger={false}
+              showTotal={() => `共 ${totalPages} 页`}
+              onChange={setCurrentPage}
+            />
+          </div>
+        )}
+        <p style={{ marginTop: 12, color: '#666', fontSize: 13 }}>
           提示：在文档中选中单词或句子，可生成学习卡片。{aiNoteEnabled && '当前已开启 AI 注释，创建卡片时会自动生成释义与例句。'}
         </p>
       </Card>

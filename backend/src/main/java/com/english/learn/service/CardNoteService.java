@@ -45,7 +45,7 @@ public class CardNoteService {
     @Transactional(rollbackFor = Exception.class)
     public CardNoteDTO update(Long id, Long userId, CardNoteDTO dto) {
         CardNote entity = cardNoteRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("注释不存在"));
-        Card card = cardRepository.findById(entity.getCardId()).orElseThrow();
+        Card card = cardRepository.findById(entity.getCardId()).orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
         if (!card.getUserId().equals(userId)) {
             throw new IllegalArgumentException("无权限修改");
         }
@@ -59,7 +59,7 @@ public class CardNoteService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteById(Long id, Long userId) {
         CardNote note = cardNoteRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("注释不存在"));
-        Card card = cardRepository.findById(note.getCardId()).orElseThrow();
+        Card card = cardRepository.findById(note.getCardId()).orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
         if (!card.getUserId().equals(userId)) {
             throw new IllegalArgumentException("无权限删除");
         }

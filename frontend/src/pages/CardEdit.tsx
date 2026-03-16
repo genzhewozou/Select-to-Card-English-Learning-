@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Card, message } from 'antd';
+import { Form, Input, Button, Card, message, Space } from 'antd';
+import { SoundOutlined } from '@ant-design/icons';
 import { getCard, createCard, updateCard } from '../services/cardService';
 import { updateCardNote } from '../services/cardNoteService';
+import { useTTS } from '../hooks/useTTS';
 import type { CardDTO } from '../types/api';
 
 /**
@@ -17,6 +19,24 @@ export default function CardEdit() {
   const [noteId, setNoteId] = useState<number | null>(null);
   const [documentId, setDocumentId] = useState<number | null>(null);
   const isEdit = id && id !== 'new';
+  const { speak, stop, isSpeaking, isSupported } = useTTS();
+
+  const handlePreview = (field: 'frontContent' | 'backContent') => {
+    const text = form.getFieldValue(field);
+    if (!text?.trim()) {
+      message.info(field === 'frontContent' ? '请先输入正面内容' : '请先输入背面内容');
+      return;
+    }
+    if (!isSupported) {
+      message.info('当前浏览器不支持试听，请使用 Chrome、Edge 等现代浏览器');
+      return;
+    }
+    if (isSpeaking) {
+      stop();
+      return;
+    }
+    speak(text);
+  };
 
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -83,12 +103,43 @@ export default function CardEdit() {
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <Form.Item
             name="frontContent"
-            label="正面内容"
+            label={
+              <Space>
+                正面内容
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<SoundOutlined />}
+                  onClick={() => handlePreview('frontContent')}
+                  disabled={isSpeaking}
+                  style={{ padding: 0 }}
+                >
+                  {isSpeaking ? '停止' : '试听'}
+                </Button>
+              </Space>
+            }
             rules={[{ required: true, message: '请输入正面内容' }]}
           >
             <Input.TextArea rows={3} placeholder="单词或句子" />
           </Form.Item>
-          <Form.Item name="backContent" label="背面内容">
+          <Form.Item
+            name="backContent"
+            label={
+              <Space>
+                背面内容
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<SoundOutlined />}
+                  onClick={() => handlePreview('backContent')}
+                  disabled={isSpeaking}
+                  style={{ padding: 0 }}
+                >
+                  {isSpeaking ? '停止' : '试听'}
+                </Button>
+              </Space>
+            }
+          >
             <Input.TextArea rows={3} placeholder="释义、例句等" />
           </Form.Item>
           {isEdit && (

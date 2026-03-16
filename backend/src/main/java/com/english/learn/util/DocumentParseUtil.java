@@ -5,6 +5,7 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -36,19 +37,30 @@ public final class DocumentParseUtil {
      * @param fileType 扩展名，如 doc、docx、txt
      * @return 解析后的文本内容
      */
+    /** 统一换行为 \n，便于前端按段落展示且 offset 计算一致 */
+    private static String normalizeLineEndings(String text) {
+        if (text == null || text.isEmpty()) return text;
+        return text.replace("\r\n", "\n").replace("\r", "\n");
+    }
+
     public static String parse(MultipartFile file, String fileType) {
         try {
             String type = fileType == null ? "" : fileType.toLowerCase();
+            String raw;
             switch (type) {
                 case TYPE_DOCX:
-                    return parseDocx(file.getInputStream());
+                    raw = parseDocx(file.getInputStream());
+                    break;
                 case TYPE_DOC:
-                    return parseDoc(file.getInputStream());
+                    raw = parseDoc(file.getInputStream());
+                    break;
                 case TYPE_TXT:
-                    return parseTxt(file.getInputStream());
+                    raw = parseTxt(file.getInputStream());
+                    break;
                 default:
                     throw new IllegalArgumentException("不支持的格式: " + fileType);
             }
+            return normalizeLineEndings(raw);
         } catch (Exception e) {
             if (e instanceof IllegalArgumentException) {
                 throw (IllegalArgumentException) e;
@@ -63,7 +75,7 @@ public final class DocumentParseUtil {
                     .map(XWPFParagraph::getText)
                     .filter(s -> s != null && !s.isEmpty())
                     .collect(Collectors.toList());
-            return String.join("\n", paragraphs);
+            return String.join("\n\n", paragraphs);
         }
     }
 
@@ -74,7 +86,12 @@ public final class DocumentParseUtil {
     }
 
     private static String parseTxt(InputStream is) throws Exception {
-        byte[] bytes = is.readAllBytes();
-        return new String(bytes, StandardCharsets.UTF_8);
+        ByteArrayOutputStream buf = new ByteArrayOutputStream();
+        byte[] b = new byte[4096];
+        int n;
+        while ((n = is.read(b)) != -1) {
+            buf.write(b, 0, n);
+        }
+        return new String(buf.toByteArray(), StandardCharsets.UTF_8);
     }
 }

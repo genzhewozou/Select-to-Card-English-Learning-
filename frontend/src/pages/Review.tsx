@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, Button, message, Slider, Space } from 'antd';
+import { SoundOutlined } from '@ant-design/icons';
 import { getTodayReviewCards, getWeakCards, submitReview } from '../services/reviewService';
+import { useTTS } from '../hooks/useTTS';
 import type { CardDTO } from '../types/api';
 
 /**
@@ -17,6 +19,20 @@ export default function Review() {
   const [proficiency, setProficiency] = useState(3);
   const [submitting, setSubmitting] = useState(false);
   const [showBack, setShowBack] = useState(false);
+  const { speak, stop, isSpeaking, isSupported } = useTTS();
+
+  const handleSpeak = (text: string) => {
+    if (!text?.trim()) return;
+    if (!isSupported) {
+      message.info('当前浏览器不支持朗读，请使用 Chrome、Edge 等现代浏览器');
+      return;
+    }
+    if (isSpeaking) {
+      stop();
+      return;
+    }
+    speak(text);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -81,7 +97,19 @@ export default function Review() {
       </h2>
       <Card>
         <p style={{ marginBottom: 8, color: '#666' }}>正面：</p>
-        <p style={{ fontSize: 18, marginBottom: 16 }}>{current?.frontContent}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <p style={{ fontSize: 18, margin: 0 }}>{current?.frontContent}</p>
+          {current?.frontContent?.trim() && (
+            <Button
+              type="default"
+              icon={<SoundOutlined />}
+              onClick={() => handleSpeak(current.frontContent ?? '')}
+              size="middle"
+            >
+              {isSpeaking ? '停止' : '朗读'}
+            </Button>
+          )}
+        </div>
         {!showBack ? (
           <Button type="primary" onClick={() => setShowBack(true)}>
             显示背面
@@ -89,7 +117,19 @@ export default function Review() {
         ) : (
           <>
             <p style={{ marginBottom: 8, color: '#666' }}>背面：</p>
-            <p style={{ fontSize: 16, marginBottom: 16 }}>{current?.backContent || '（无）'}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+              <p style={{ fontSize: 16, margin: 0 }}>{current?.backContent || '（无）'}</p>
+              {(current?.backContent?.trim()) && (
+                <Button
+                  type="default"
+                  icon={<SoundOutlined />}
+                  onClick={() => handleSpeak(current?.backContent ?? '')}
+                  size="middle"
+                >
+                  {isSpeaking ? '停止' : '朗读'}
+                </Button>
+              )}
+            </div>
             <p style={{ marginBottom: 8 }}>熟练度（1-5）：</p>
             <Slider
               min={1}

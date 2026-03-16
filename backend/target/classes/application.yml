@@ -4,9 +4,10 @@ spring:
   application:
     name: english-learning-backend
   datasource:
-    url: jdbc:mysql://gateway01.us-west-2.prod.aws.tidbcloud.com:4000/github_sample?useSSL=true&requireSSL=true&trustServerCertificate=true&serverTimezone=UTC&characterEncoding=utf8
-    username: 3jLiSiFakSm1n24.root
-    password: 58tAQ9693GKdgzdG
+    # serverTimezone=Asia/Shanghai：与 Java LocalDateTime 及「今日复习」SQL 中 NOW() 统一为东八区，避免已过期卡片查不出
+    url: jdbc:mysql://127.0.0.1:3306/english_learning?useSSL=false&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    username: root
+    password: woaini1996
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       minimum-idle: 5

@@ -45,11 +45,11 @@ public class AiNoteService {
             String apiKey,
             String model,
             String baseUrl) {
-        if (selectedText == null || selectedText.isBlank() || apiKey == null || apiKey.isBlank()) {
+        if (selectedText == null || selectedText.trim().isEmpty() || apiKey == null || apiKey.trim().isEmpty()) {
             return Optional.empty();
         }
-        String m = (model != null && !model.isBlank()) ? model.trim() : DEFAULT_MODEL;
-        String u = (baseUrl != null && !baseUrl.isBlank()) ? baseUrl.replaceAll("/$", "") : DEFAULT_BASE_URL;
+        String m = (model != null && !model.trim().isEmpty()) ? model.trim() : DEFAULT_MODEL;
+        String u = (baseUrl != null && !baseUrl.trim().isEmpty()) ? baseUrl.replaceAll("/$", "") : DEFAULT_BASE_URL;
         return doGenerate(selectedText, contextSentence, apiKey.trim(), m, u);
     }
 

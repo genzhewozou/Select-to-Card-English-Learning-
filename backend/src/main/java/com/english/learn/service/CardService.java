@@ -50,11 +50,11 @@ public class CardService {
         cardProgressRepository.save(progress);
         // 注释来源：优先使用前端已生成好的 aiNoteContent，否则再根据 useAiNote+aiApiKey 调 AI
         String noteToSave = null;
-        if (dto.getAiNoteContent() != null && !dto.getAiNoteContent().isBlank()) {
+        if (dto.getAiNoteContent() != null && !dto.getAiNoteContent().trim().isEmpty()) {
             noteToSave = dto.getAiNoteContent().trim();
         } else {
             boolean useAi = Boolean.TRUE.equals(dto.getUseAiNote());
-            boolean hasKey = dto.getAiApiKey() != null && !dto.getAiApiKey().isBlank();
+            boolean hasKey = dto.getAiApiKey() != null && !dto.getAiApiKey().trim().isEmpty();
             if (useAi && hasKey) {
                 Optional<String> aiNote = aiNoteService.generateNoteWithConfig(
                         entity.getFrontContent(), dto.getContextSentence(),
@@ -100,7 +100,7 @@ public class CardService {
         List<CardDTO> list = documentId != null
                 ? listByDocumentId(userId, documentId)
                 : listByUserId(userId);
-        if (keyword != null && !keyword.isBlank()) {
+        if (keyword != null && !keyword.trim().isEmpty()) {
             String k = keyword.trim().toLowerCase();
             list = list.stream().filter(c ->
                     (c.getFrontContent() != null && c.getFrontContent().toLowerCase().contains(k))
