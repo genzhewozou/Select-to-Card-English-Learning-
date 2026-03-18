@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Button, Space, message, Tag, Card } from 'antd';
-import { getWeakCards } from '../services/reviewService';
+import { getWeakCardsPage } from '../services/reviewService';
 import type { CardDTO } from '../types/api';
 
 /**
@@ -11,12 +11,18 @@ export default function WeakCards() {
   const navigate = useNavigate();
   const [list, setList] = useState<CardDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
 
-  const load = async () => {
+  const load = async (p = page, s = pageSize) => {
     setLoading(true);
     try {
-      const data = await getWeakCards();
-      setList(data ?? []);
+      const data = await getWeakCardsPage(p, s);
+      setList(data?.list ?? []);
+      setTotal(data?.total ?? 0);
+      setPage(data?.page ?? p);
+      setPageSize(data?.size ?? s);
     } catch (e) {
       message.error(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -71,7 +77,13 @@ export default function WeakCards() {
           loading={loading}
           dataSource={list}
           columns={columns}
-          pagination={{ pageSize: 10 }}
+          pagination={{
+            current: page,
+            pageSize,
+            total,
+            showSizeChanger: true,
+            onChange: (p, s) => load(p, s),
+          }}
         />
       </Card>
     </div>

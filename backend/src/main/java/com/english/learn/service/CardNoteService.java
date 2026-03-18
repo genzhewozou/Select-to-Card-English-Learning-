@@ -14,11 +14,16 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * 卡片注释业务服务：增删改查。
+ * 卡片注释业务服务：增删改查。保存时自动去掉内容中的连续空行。
  */
 @Service
 @RequiredArgsConstructor
 public class CardNoteService {
+
+    private static String normalizeEmptyLines(String s) {
+        if (s == null || s.isBlank()) return s;
+        return s.trim().replaceAll("\\n[\\s]*\\n", "\n");
+    }
 
     private final CardNoteRepository cardNoteRepository;
     private final CardRepository cardRepository;
@@ -30,6 +35,9 @@ public class CardNoteService {
             throw new IllegalArgumentException("无权限为该卡片添加注释");
         }
         CardNote entity = CardNoteMapper.toEntity(dto);
+        if (entity.getContent() != null) {
+            entity.setContent(normalizeEmptyLines(entity.getContent()));
+        }
         entity = cardNoteRepository.save(entity);
         return CardNoteMapper.toDTO(entity);
     }
@@ -50,7 +58,7 @@ public class CardNoteService {
             throw new IllegalArgumentException("无权限修改");
         }
         if (dto.getContent() != null) {
-            entity.setContent(dto.getContent());
+            entity.setContent(normalizeEmptyLines(dto.getContent()));
         }
         entity = cardNoteRepository.save(entity);
         return CardNoteMapper.toDTO(entity);

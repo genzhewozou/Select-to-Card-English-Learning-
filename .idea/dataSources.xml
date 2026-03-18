@@ -8,5 +8,12 @@
       <jdbc-url>jdbc:mysql://gateway01.us-west-2.prod.aws.tidbcloud.com:4000</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
+    <data-source source="LOCAL" name="leo_local_sqlServer" uuid="61543f25-baf0-469f-a454-68180b6350d0">
+      <driver-ref>sqlserver.ms</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>com.microsoft.sqlserver.jdbc.SQLServerDriver</jdbc-driver>
+      <jdbc-url>jdbc:sqlserver://localhost:1433;database=master</jdbc-url>
+      <working-dir>$ProjectFileDir$</working-dir>
+    </data-source>
   </component>
 </project>

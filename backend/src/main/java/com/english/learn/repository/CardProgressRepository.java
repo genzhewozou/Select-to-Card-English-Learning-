@@ -1,12 +1,15 @@
 package com.english.learn.repository;
 
 import com.english.learn.entity.CardProgress;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 
 /**
  * 学习进度表数据访问层。
@@ -29,4 +32,11 @@ public interface CardProgressRepository extends JpaRepository<CardProgress, Long
 
     /** 熟练度 <= maxLevel 的进度（用于错题本） */
     List<CardProgress> findByUserIdAndProficiencyLevelLessThanEqual(Long userId, Integer maxLevel);
+
+    /** 批量查询进度（用于列表页避免 N+1） */
+    List<CardProgress> findByUserIdAndCardIdIn(Long userId, Collection<Long> cardIds);
+
+    /** 错题本分页：直接在 progress 上分页，保证 total/分页准确 */
+    @Query("SELECT p.cardId FROM CardProgress p WHERE p.userId = :userId AND p.proficiencyLevel <= :maxLevel ORDER BY p.gmtModified DESC")
+    Page<Long> findWeakCardIds(Long userId, Integer maxLevel, Pageable pageable);
 }

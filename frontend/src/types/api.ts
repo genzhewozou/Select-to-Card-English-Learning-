@@ -7,6 +7,13 @@ export interface Result<T> {
   data: T;
 }
 
+export interface PageResult<T> {
+  page: number;
+  size: number;
+  total: number;
+  list: T[];
+}
+
 export interface UserDTO {
   id?: number;
   username: string;

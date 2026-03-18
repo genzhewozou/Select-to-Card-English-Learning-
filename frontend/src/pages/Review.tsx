@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, Button, message, Slider, Space } from 'antd';
 import { SoundOutlined } from '@ant-design/icons';
-import { getTodayReviewCards, getWeakCards, submitReview } from '../services/reviewService';
+import { getTodayReviewPage, getWeakCardsPage, submitReview } from '../services/reviewService';
 import { useTTS } from '../hooks/useTTS';
 import type { CardDTO } from '../types/api';
 
@@ -37,8 +37,9 @@ export default function Review() {
   const load = async () => {
     setLoading(true);
     try {
-      const data = modeWeak ? await getWeakCards() : await getTodayReviewCards();
-      setList(data ?? []);
+      // 默认最多拉 200 张，保证速度；需要更多可后续做「下一页」加载
+      const data = modeWeak ? await getWeakCardsPage(1, 200) : await getTodayReviewPage(1, 200);
+      setList(data?.list ?? []);
       setCurrentIndex(0);
       setShowBack(false);
       setProficiency(3);
@@ -117,8 +118,7 @@ export default function Review() {
         ) : (
           <>
             <p style={{ marginBottom: 8, color: '#666' }}>背面：</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-              <p style={{ fontSize: 16, margin: 0 }}>{current?.backContent || '（无）'}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               {(current?.backContent?.trim()) && (
                 <Button
                   type="default"
@@ -129,6 +129,23 @@ export default function Review() {
                   {isSpeaking ? '停止' : '朗读'}
                 </Button>
               )}
+            </div>
+            <div
+              style={{
+                background: '#fafafa',
+                border: '1px solid #f0f0f0',
+                borderRadius: 8,
+                padding: 16,
+                whiteSpace: 'pre-wrap',
+                lineHeight: 1.75,
+                fontSize: 14,
+                color: '#333',
+                maxHeight: 320,
+                overflow: 'auto',
+                marginBottom: 16,
+              }}
+            >
+              {current?.backContent?.trim() ? current.backContent : '（无）'}
             </div>
             <p style={{ marginBottom: 8 }}>熟练度（1-5）：</p>
             <Slider

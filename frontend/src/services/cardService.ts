@@ -1,5 +1,5 @@
 import request from '../utils/request';
-import type { Result } from '../types/api';
+import type { PageResult, Result } from '../types/api';
 import type { CardDTO } from '../types/api';
 
 /**
@@ -23,6 +23,35 @@ export function getCardList(params?: CardListParams) {
   if (params?.proficiencyMax != null) p.proficiencyMax = params.proficiencyMax;
   if (params?.dueToday === true) p.dueToday = true;
   return request.get<Result<CardDTO[]>>('/card/list', { params: p }).then((r) => r.data.data);
+}
+
+export interface CardPageParams extends CardListParams {
+  page?: number;
+  size?: number;
+}
+
+export function getCardPage(params?: CardPageParams) {
+  const p: Record<string, string | number | boolean | undefined | null> = {};
+  if (params?.documentId != null) p.documentId = params.documentId;
+  if (params?.keyword != null && params.keyword.trim()) p.keyword = params.keyword.trim();
+  if (params?.proficiencyMax != null) p.proficiencyMax = params.proficiencyMax;
+  if (params?.dueToday === true) p.dueToday = true;
+  if (params?.page != null) p.page = params.page;
+  if (params?.size != null) p.size = params.size;
+  return request.get<Result<PageResult<CardDTO>>>('/card/page', { params: p }).then((r) => r.data.data);
+}
+
+export interface CardRangeDTO {
+  id: number;
+  startOffset?: number;
+  endOffset?: number;
+  frontContent?: string;
+}
+
+export function getCardRanges(documentId: number) {
+  return request
+    .get<Result<CardRangeDTO[]>>('/card/ranges', { params: { documentId } })
+    .then((r) => r.data.data);
 }
 
 export function getCard(id: number) {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Table, Button, Space, message, Modal, Tag, Input, Select, Checkbox } from 'antd';
-import { getCardList, deleteCard } from '../services/cardService';
+import { getCardPage, deleteCard } from '../services/cardService';
 import { getDocumentList } from '../services/documentService';
 import type { CardDTO } from '../types/api';
 import type { DocumentDTO } from '../types/api';
@@ -18,18 +18,28 @@ export default function CardList() {
   const [filterKeyword, setFilterKeyword] = useState('');
   const [filterProficiencyMax, setFilterProficiencyMax] = useState<number | undefined>(undefined);
   const [filterDueToday, setFilterDueToday] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
 
-  const load = async (override?: { keyword?: string }) => {
+  const load = async (opts?: { keyword?: string; page?: number; size?: number }) => {
     setLoading(true);
     try {
-      const kw = override?.keyword !== undefined ? override.keyword : filterKeyword;
-      const data = await getCardList({
+      const kw = opts?.keyword !== undefined ? opts.keyword : filterKeyword;
+      const p = opts?.page ?? page;
+      const s = opts?.size ?? pageSize;
+      const data = await getCardPage({
         documentId: filterDocumentId,
         keyword: kw?.trim() || undefined,
         proficiencyMax: filterProficiencyMax,
         dueToday: filterDueToday || undefined,
+        page: p,
+        size: s,
       });
-      setList(data ?? []);
+      setList(data?.list ?? []);
+      setTotal(data?.total ?? 0);
+      setPage(data?.page ?? p);
+      setPageSize(data?.size ?? s);
     } catch (e) {
       message.error(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -54,7 +64,7 @@ export default function CardList() {
         try {
           await deleteCard(record.id!);
           message.success('已删除');
-          load();
+          load({ page: 1 });
         } catch (e) {
           message.error(e instanceof Error ? e.message : '删除失败');
         }
@@ -130,7 +140,7 @@ export default function CardList() {
           style={{ width: 200 }}
           value={filterKeyword}
           onChange={(e) => setFilterKeyword(e.target.value)}
-          onSearch={(value) => load({ keyword: value })}
+          onSearch={(value) => load({ keyword: value, page: 1 })}
         />
         <Select
           placeholder="熟练度"
@@ -151,7 +161,13 @@ export default function CardList() {
         loading={loading}
         dataSource={list}
         columns={columns}
-        pagination={{ pageSize: 10 }}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showSizeChanger: true,
+          onChange: (p, s) => load({ page: p, size: s }),
+        }}
       />
     </div>
   );

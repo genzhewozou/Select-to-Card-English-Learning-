@@ -1,9 +1,12 @@
 package com.english.learn.controller;
 
+import com.english.learn.common.PageResult;
 import com.english.learn.common.Result;
 import com.english.learn.dto.CardDTO;
+import com.english.learn.dto.CardRangeDTO;
 import com.english.learn.service.CardService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
@@ -45,6 +48,30 @@ public class CardController {
             @RequestParam(value = "dueToday", required = false) Boolean dueToday) {
         Long uid = getUserId(userId);
         return Result.success(cardService.listWithFilters(uid, documentId, keyword, proficiencyMax, dueToday));
+    }
+
+    /** GET /api/card/page - 服务端分页（默认 page=1,size=10），避免一次拉全表导致慢/超时 */
+    @GetMapping("/page")
+    public Result<PageResult<CardDTO>> page(
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestParam(value = "documentId", required = false) Long documentId,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "proficiencyMax", required = false) Integer proficiencyMax,
+            @RequestParam(value = "dueToday", required = false) Boolean dueToday,
+            @RequestParam(value = "page", required = false, defaultValue = "1") Integer page,
+            @RequestParam(value = "size", required = false, defaultValue = "10") Integer size) {
+        Long uid = getUserId(userId);
+        Page<CardDTO> p = cardService.pageWithFilters(uid, documentId, keyword, proficiencyMax, dueToday, page, size);
+        return Result.success(PageResult.of(page, size, p.getTotalElements(), p.getContent()));
+    }
+
+    /** GET /api/card/ranges?documentId=xxx - 文档内高亮范围（轻量） */
+    @GetMapping("/ranges")
+    public Result<List<CardRangeDTO>> ranges(
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestParam("documentId") Long documentId) {
+        Long uid = getUserId(userId);
+        return Result.success(cardService.listRangesByDocumentId(uid, documentId));
     }
 
     /** GET /api/card/{id} */

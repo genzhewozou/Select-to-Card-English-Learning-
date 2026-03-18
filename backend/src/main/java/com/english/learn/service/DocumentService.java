@@ -6,6 +6,9 @@ import com.english.learn.mapper.DocumentMapper;
 import com.english.learn.repository.DocumentRepository;
 import com.english.learn.util.DocumentParseUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -45,6 +48,13 @@ public class DocumentService {
     public List<DocumentDTO> listByUserId(Long userId) {
         return documentRepository.findByUserIdOrderByGmtCreateDesc(userId)
                 .stream().map(DocumentMapper::toDTO).collect(Collectors.toList());
+    }
+
+    public Page<DocumentDTO> pageByUserId(Long userId, int page, int size) {
+        int p = Math.max(1, page);
+        int s = Math.max(1, Math.min(size, 100));
+        PageRequest pr = PageRequest.of(p - 1, s, Sort.by(Sort.Direction.DESC, "gmtCreate"));
+        return documentRepository.findByUserIdOrderByGmtCreateDesc(userId, pr).map(DocumentMapper::toDTO);
     }
 
     public DocumentDTO getById(Long id, Long userId) {

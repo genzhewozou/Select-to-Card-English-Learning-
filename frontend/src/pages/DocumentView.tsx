@@ -2,10 +2,11 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button, Card, message, Modal, Input, Switch, Pagination } from 'antd';
 import { getDocument } from '../services/documentService';
-import { createCard, getCardList } from '../services/cardService';
+import { createCard, getCardRanges } from '../services/cardService';
 import { generateNote } from '../services/aiService';
 import { getAiConfig, getDocAiNoteEnabled, setDocAiNoteEnabled } from '../utils/aiConfigStorage';
 import type { CardDTO, DocumentDTO } from '../types/api';
+import type { CardRangeDTO } from '../services/cardService';
 
 /**
  * 文档查看页：展示文档纯文本内容。
@@ -26,12 +27,15 @@ export default function DocumentView() {
   const [selectedText, setSelectedText] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [backContent, setBackContent] = useState('');
-  const [contextSentence, setContextSentence] = useState('');
   const [noteLoading, setNoteLoading] = useState(false);
   const [aiNoteEnabled, setAiNoteEnabled] = useState(() => getDocAiNoteEnabled());
+  const [selectionPopupEnabled, setSelectionPopupEnabled] = useState(() => {
+    const v = localStorage.getItem('english-learn-selection-popup-enabled');
+    return v == null ? true : v === 'true';
+  });
   const [createLoading, setCreateLoading] = useState(false);
   const [selectedOffsets, setSelectedOffsets] = useState<{ start: number; end: number } | null>(null);
-  const [docCards, setDocCards] = useState<CardDTO[]>([]);
+  const [docCards, setDocCards] = useState<CardRangeDTO[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
 
   const docId = id ? Number(id) : 0;
@@ -143,24 +147,11 @@ export default function DocumentView() {
     }, 100);
   }, [location.hash, pageRanges, doc?.content, docCards]);
 
-  /** 从文档内容中取出包含选中文本的段落，作为 AI 上下文 */
-  function getParagraphContainingSelection(fullText: string, selected: string): string {
-    if (!fullText || !selected) return '';
-    const idx = fullText.indexOf(selected);
-    if (idx < 0) return '';
-    const before = fullText.slice(0, idx);
-    const after = fullText.slice(idx + selected.length);
-    const start = Math.max(0, (Math.max(before.lastIndexOf('\n\n'), before.lastIndexOf('\n')) + 1) || 0);
-    const endNN = after.indexOf('\n\n');
-    const end = endNN >= 0 ? idx + selected.length + endNN + 2 : fullText.length;
-    return fullText.slice(start, end).trim();
-  }
-
   useEffect(() => {
     if (!docId) return;
     setLoading(true);
     setCurrentPage(1);
-    Promise.all([getDocument(docId), getCardList({ documentId: docId })])
+    Promise.all([getDocument(docId), getCardRanges(docId)])
       .then(([documentData, cards]) => {
         setDoc(documentData);
         setDocCards(cards ?? []);
@@ -174,6 +165,11 @@ export default function DocumentView() {
     setDocAiNoteEnabled(enabled);
   };
 
+  const handleToggleSelectionPopup = (enabled: boolean) => {
+    setSelectionPopupEnabled(enabled);
+    localStorage.setItem('english-learn-selection-popup-enabled', enabled ? 'true' : 'false');
+  };
+
   // 选中文本在文档内容中的起始/结束偏移（用于保存到卡片并高亮）
   const getSelectionOffsets = (text: string): { start: number; end: number } | null => {
     if (!doc?.content || !text) return null;
@@ -184,12 +180,12 @@ export default function DocumentView() {
 
   // 选中文本后触发：保存选中内容并打开“生成卡片”弹窗
   const handleMouseUp = () => {
+    if (!selectionPopupEnabled) return;
     const selection = window.getSelection();
     const text = selection?.toString().trim();
     if (text && doc?.content) {
       setSelectedText(text);
       setBackContent('');
-      setContextSentence(getParagraphContainingSelection(doc.content, text));
       setSelectedOffsets(getSelectionOffsets(text));
       setModalOpen(true);
     }
@@ -205,7 +201,6 @@ export default function DocumentView() {
     setNoteLoading(true);
     generateNote({
       frontContent: selectedText,
-      contextSentence: contextSentence || '',
       aiApiKey: config.apiKey.trim(),
       aiModel: config.model?.trim() || undefined,
       aiBaseUrl: config.baseUrl?.trim() || undefined,
@@ -213,7 +208,7 @@ export default function DocumentView() {
       .then((content) => setBackContent(content || ''))
       .catch(() => message.error('AI 释义生成失败'))
       .finally(() => setNoteLoading(false));
-  }, [modalOpen, aiNoteEnabled, selectedText, contextSentence]);
+  }, [modalOpen, aiNoteEnabled, selectedText]);
 
   const handleCreateCard = async () => {
     const userId = localStorage.getItem('userId');
@@ -230,7 +225,6 @@ export default function DocumentView() {
         documentId: docId,
         frontContent: selectedText,
         backContent: backContent || undefined,
-        contextSentence: contextSentence || undefined,
         startOffset: selectedOffsets?.start,
         endOffset: selectedOffsets?.end,
       };
@@ -245,13 +239,12 @@ export default function DocumentView() {
       const created = await createCard(payload);
       setModalOpen(false);
       setSelectedText('');
-      if (aiNoteEnabled && created?.id) {
-        message.success('卡片已创建');
-        setDocCards((prev) => (created ? [created, ...prev] : prev));
-        navigate(`/cards/${created.id}/edit`);
-      } else {
-        message.success('卡片已创建');
-        if (created) setDocCards((prev) => [created, ...prev]);
+      message.success('卡片已创建，可继续在文档中选词生成');
+      if (created?.id) {
+        setDocCards((prev) => [
+          { id: created.id, startOffset: created.startOffset, endOffset: created.endOffset, frontContent: created.frontContent },
+          ...prev,
+        ]);
       }
     } catch (e) {
       message.error(e instanceof Error ? e.message : '创建失败');
@@ -268,6 +261,10 @@ export default function DocumentView() {
     <div>
       <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <Button onClick={() => navigate('/documents')}>返回列表</Button>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Switch checked={selectionPopupEnabled} onChange={handleToggleSelectionPopup} />
+          <span>选词弹出创建卡片</span>
+        </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Switch checked={aiNoteEnabled} onChange={handleToggleAiNote} />
           <span>开启 AI 注释（生成卡片时将自动调 AI 填充注释，可在编辑页调整）</span>
@@ -369,13 +366,6 @@ export default function DocumentView() {
           onChange={(e) => setBackContent(e.target.value)}
           placeholder={aiNoteEnabled ? '打开弹窗时自动生成，可直接修改' : '可填写释义、例句等'}
           disabled={noteLoading}
-        />
-        <p style={{ marginTop: 16 }}><strong>上下文（选填，供 AI 消歧与生成例句）：</strong></p>
-        <Input.TextArea
-          rows={2}
-          value={contextSentence}
-          onChange={(e) => setContextSentence(e.target.value)}
-          placeholder="默认已填入选中内容所在段落"
         />
       </Modal>
     </div>

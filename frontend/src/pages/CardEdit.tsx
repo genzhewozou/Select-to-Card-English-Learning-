@@ -3,12 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Card, message, Space } from 'antd';
 import { SoundOutlined } from '@ant-design/icons';
 import { getCard, createCard, updateCard } from '../services/cardService';
-import { updateCardNote } from '../services/cardNoteService';
 import { useTTS } from '../hooks/useTTS';
 import type { CardDTO } from '../types/api';
 
 /**
- * 卡片编辑页：新建或编辑卡片，表单含正面、背面、AI 注释（编辑时可修改）。
+ * 卡片编辑页：新建或编辑卡片，表单含正面、背面。
  */
 export default function CardEdit() {
   const { id } = useParams<{ id: string }>();
@@ -16,7 +15,6 @@ export default function CardEdit() {
   const [loading, setLoading] = useState(!!id);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
-  const [noteId, setNoteId] = useState<number | null>(null);
   const [documentId, setDocumentId] = useState<number | null>(null);
   const isEdit = id && id !== 'new';
   const { speak, stop, isSpeaking, isSupported } = useTTS();
@@ -45,10 +43,7 @@ export default function CardEdit() {
         form.setFieldsValue({
           frontContent: data.frontContent,
           backContent: data.backContent,
-          noteContent: data.notes?.[0]?.content ?? '',
         });
-        const first = data.notes?.[0];
-        setNoteId(first?.id ?? null);
         setDocumentId(data.documentId ?? null);
       })
       .catch((e) => message.error(e instanceof Error ? e.message : '加载失败'))
@@ -65,9 +60,6 @@ export default function CardEdit() {
           frontContent: values.frontContent,
           backContent: values.backContent,
         });
-        if (noteId != null && values.noteContent !== undefined) {
-          await updateCardNote(noteId, { content: values.noteContent });
-        }
         message.success('保存成功');
       } else {
         await createCard({
@@ -140,13 +132,11 @@ export default function CardEdit() {
               </Space>
             }
           >
-            <Input.TextArea rows={3} placeholder="释义、例句等" />
+            <Input.TextArea
+              autoSize={{ minRows: 10, maxRows: 22 }}
+              placeholder="可粘贴/编辑较长的释义、例句、笔记等"
+            />
           </Form.Item>
-          {isEdit && (
-            <Form.Item name="noteContent" label="AI 注释（可修改）">
-              <Input.TextArea rows={5} placeholder="AI 生成的释义与例句，可在此修改" />
-            </Form.Item>
-          )}
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={submitting}>
               {isEdit ? '保存' : '创建'}

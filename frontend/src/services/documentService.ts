@@ -1,5 +1,5 @@
 import request from '../utils/request';
-import type { Result } from '../types/api';
+import type { PageResult, Result } from '../types/api';
 import type { DocumentDTO } from '../types/api';
 
 /**
@@ -17,6 +17,12 @@ export function uploadDocument(file: File) {
 
 export function getDocumentList() {
   return request.get<Result<DocumentDTO[]>>('/document/list').then((r) => r.data.data);
+}
+
+export function getDocumentPage(page = 1, size = 10) {
+  return request
+    .get<Result<PageResult<DocumentDTO>>>('/document/page', { params: { page, size } })
+    .then((r) => r.data.data);
 }
 
 export function getDocument(id: number) {

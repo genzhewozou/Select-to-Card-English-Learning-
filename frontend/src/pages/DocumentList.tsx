@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, Table, Button, Space, message, Modal } from 'antd';
 import type { UploadFile } from 'antd';
-import { getDocumentList, uploadDocument, deleteDocument } from '../services/documentService';
+import { getDocumentPage, uploadDocument, deleteDocument } from '../services/documentService';
 import type { DocumentDTO } from '../types/api';
 
 /**
@@ -12,12 +12,18 @@ export default function DocumentList() {
   const navigate = useNavigate();
   const [list, setList] = useState<DocumentDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
 
-  const load = async () => {
+  const load = async (p = page, s = pageSize) => {
     setLoading(true);
     try {
-      const data = await getDocumentList();
-      setList(data ?? []);
+      const data = await getDocumentPage(p, s);
+      setList(data?.list ?? []);
+      setTotal(data?.total ?? 0);
+      setPage(data?.page ?? p);
+      setPageSize(data?.size ?? s);
     } catch (e) {
       message.error(e instanceof Error ? e.message : '加载失败');
     } finally {
@@ -26,14 +32,14 @@ export default function DocumentList() {
   };
 
   useEffect(() => {
-    load();
+    load(1, pageSize);
   }, []);
 
   const handleUpload = async (file: File) => {
     try {
       await uploadDocument(file);
       message.success('上传成功');
-      load();
+      load(1, pageSize);
     } catch (e) {
       message.error(e instanceof Error ? e.message : '上传失败');
     }
@@ -49,7 +55,7 @@ export default function DocumentList() {
         try {
           await deleteDocument(record.id!);
           message.success('已删除');
-          load();
+          load(1, pageSize);
         } catch (e) {
           message.error(e instanceof Error ? e.message : '删除失败');
         }
@@ -90,7 +96,13 @@ export default function DocumentList() {
         loading={loading}
         dataSource={list}
         columns={columns}
-        pagination={{ pageSize: 10 }}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showSizeChanger: true,
+          onChange: (p, s) => load(p, s),
+        }}
       />
     </div>
   );

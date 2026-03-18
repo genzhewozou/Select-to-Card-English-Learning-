@@ -1,9 +1,11 @@
 package com.english.learn.controller;
 
+import com.english.learn.common.PageResult;
 import com.english.learn.common.Result;
 import com.english.learn.dto.DocumentDTO;
 import com.english.learn.service.DocumentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -39,6 +41,16 @@ public class DocumentController {
     @GetMapping("/list")
     public Result<List<DocumentDTO>> list(@RequestHeader(value = "X-User-Id", required = false) Long userId) {
         return Result.success(documentService.listByUserId(getUserId(userId)));
+    }
+
+    /** GET /api/document/page - 服务端分页，默认 page=1,size=10 */
+    @GetMapping("/page")
+    public Result<PageResult<DocumentDTO>> page(
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestParam(value = "page", required = false, defaultValue = "1") Integer page,
+            @RequestParam(value = "size", required = false, defaultValue = "10") Integer size) {
+        Page<DocumentDTO> p = documentService.pageByUserId(getUserId(userId), page, size);
+        return Result.success(PageResult.of(page, size, p.getTotalElements(), p.getContent()));
     }
 
     /** GET /api/document/{id} */

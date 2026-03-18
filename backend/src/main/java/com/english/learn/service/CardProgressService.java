@@ -9,11 +9,13 @@ import com.english.learn.repository.CardProgressRepository;
 import com.english.learn.repository.CardRepository;
 import com.english.learn.util.EbbinghausUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -63,14 +65,11 @@ public class CardProgressService {
         List<CardProgressDTO> due = cardProgressRepository.findDueForReview(userId).stream()
                 .map(CardProgressMapper::toDTO)
                 .collect(Collectors.toList());
-        // 2. 从未复习的卡片：该用户所有卡片中，没有进度记录的视为「今日待复习」
+        // 2. 从未复习的卡片：没有进度记录的视为「今日待复习」
         Set<Long> dueCardIds = due.stream().map(CardProgressDTO::getCardId).collect(Collectors.toSet());
-        Set<Long> hasProgressCardIds = new HashSet<>(cardProgressRepository.findCardIdsByUserId(userId));
-        List<Long> allCardIds = cardRepository.findByUserIdOrderByGmtCreateDesc(userId).stream()
-                .map(Card::getId)
-                .collect(Collectors.toList());
-        for (Long cardId : allCardIds) {
-            if (hasProgressCardIds.contains(cardId)) continue;
+        // 为避免卡片数量很大时全量扫描，限制补齐数量（默认最多 200 张未复习卡片）
+        List<Long> neverReviewed = cardRepository.findNeverReviewedCardIds(userId, PageRequest.of(0, 200));
+        for (Long cardId : neverReviewed) {
             if (dueCardIds.contains(cardId)) continue;
             CardProgressDTO dto = new CardProgressDTO();
             dto.setCardId(cardId);
@@ -93,5 +92,13 @@ public class CardProgressService {
         return cardProgressRepository.findByUserIdAndProficiencyLevelLessThanEqual(userId, maxLevel).stream()
                 .map(CardProgress::getCardId)
                 .collect(Collectors.toList());
+    }
+
+    /** 错题本分页：熟练度 <= maxLevel 的 cardId 分页 */
+    public Page<Long> pageWeakCardIds(Long userId, int maxLevel, int page, int size) {
+        int p = Math.max(1, page);
+        int s = Math.max(1, Math.min(size, 100));
+        PageRequest pr = PageRequest.of(p - 1, s, Sort.by(Sort.Direction.DESC, "gmtModified"));
+        return cardProgressRepository.findWeakCardIds(userId, maxLevel, pr);
     }
 }
