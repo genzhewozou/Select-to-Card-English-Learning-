@@ -3,12 +3,20 @@ package com.english.learn.controller;
 import com.english.learn.common.PageResult;
 import com.english.learn.common.Result;
 import com.english.learn.dto.DocumentDTO;
+import com.english.learn.dto.DocumentDownloadResult;
+import com.english.learn.dto.DocumentImageResult;
 import com.english.learn.service.DocumentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.util.UriUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -59,6 +67,35 @@ public class DocumentController {
             @PathVariable Long id,
             @RequestHeader(value = "X-User-Id", required = false) Long userId) {
         return Result.success(documentService.getById(id, getUserId(userId)));
+    }
+
+    /** GET /api/document/{id}/download — 下载服务器保存的上传原件（非 JSON） */
+    @GetMapping("/{id}/download")
+    public ResponseEntity<Resource> downloadOriginal(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        DocumentDownloadResult r = documentService.loadOriginalDownload(id, getUserId(userId));
+        String encoded = UriUtils.encode(r.getFileName(), StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encoded)
+                .body(r.getResource());
+    }
+
+    /** GET /api/document/{id}/images/{index} — 读取文档中提取的图片 */
+    @GetMapping("/{id}/images/{index}")
+    public ResponseEntity<Resource> getDocImage(
+            @PathVariable Long id,
+            @PathVariable Integer index,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        DocumentImageResult r = documentService.loadDocImage(id, getUserId(userId), index);
+        MediaType mt;
+        try {
+            mt = MediaType.parseMediaType(r.getContentType());
+        } catch (Exception ignore) {
+            mt = MediaType.APPLICATION_OCTET_STREAM;
+        }
+        return ResponseEntity.ok().contentType(mt).body(r.getResource());
     }
 
     /** DELETE /api/document/{id} */

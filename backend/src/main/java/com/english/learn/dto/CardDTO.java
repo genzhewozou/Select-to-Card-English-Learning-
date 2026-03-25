@@ -30,6 +30,8 @@ public class CardDTO {
     private String aiModel;
     /** AI 接口根地址，如 https://api.openai.com/v1（选填） */
     private String aiBaseUrl;
+    /** AI 注释提示词模板（选填，支持 {{target}} / {{context}}） */
+    private String aiNotePrompt;
     /** 前端已生成好的注释内容（有此字段时直接落库，不再调 AI） */
     private String aiNoteContent;
     private Integer startOffset;

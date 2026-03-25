@@ -30,6 +30,8 @@ export interface DocumentDTO {
   fileName: string;
   fileType?: string;
   content?: string;
+  /** 服务器是否保存了上传原件（可下载） */
+  originalAvailable?: boolean;
   gmtCreate?: string;
   gmtModified?: string;
 }
@@ -70,6 +72,8 @@ export interface CardDTO {
   aiModel?: string;
   /** AI 接口根地址（选填） */
   aiBaseUrl?: string;
+  /** AI 注释提示词模板（选填） */
+  aiNotePrompt?: string;
   /** 前端已生成好的注释内容（有此字段时直接落库，不再调 AI） */
   aiNoteContent?: string;
   startOffset?: number;

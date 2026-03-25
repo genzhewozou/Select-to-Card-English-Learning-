@@ -1,6 +1,7 @@
 package com.english.learn.controller;
 
 import com.english.learn.common.Result;
+import com.english.learn.dto.AiChatRequest;
 import com.english.learn.dto.AiGenerateNoteRequest;
 import com.english.learn.service.AiNoteService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,18 @@ public class AiController {
         Optional<String> content = aiNoteService.generateNoteWithConfig(
                 req.getFrontContent(),
                 req.getContextSentence(),
+                req.getAiApiKey(),
+                req.getAiModel(),
+                req.getAiBaseUrl(),
+                req.getAiNotePrompt());
+        return Result.success(content.orElse(""));
+    }
+
+    /** POST /api/ai/chat：配置页聊天测试 */
+    @PostMapping("/chat")
+    public Result<String> chat(@Valid @RequestBody AiChatRequest req) {
+        Optional<String> content = aiNoteService.chatWithConfig(
+                req.getMessage(),
                 req.getAiApiKey(),
                 req.getAiModel(),
                 req.getAiBaseUrl());

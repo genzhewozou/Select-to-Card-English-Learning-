@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 复习 REST 接口：今日待复习列表、提交复习结果。
@@ -37,7 +38,7 @@ public class ReviewController {
     public Result<List<CardDTO>> todayList(@RequestHeader(value = "X-User-Id", required = false) Long userId) {
         Long uid = getUserId(userId);
         List<CardProgressDTO> progressList = cardProgressService.findDueForReview(uid);
-        List<Long> cardIds = progressList.stream().map(CardProgressDTO::getCardId).toList();
+        List<Long> cardIds = progressList.stream().map(CardProgressDTO::getCardId).collect(Collectors.toList());
         List<CardDTO> cards = cardService.getByIdsInOrder(uid, cardIds);
         return Result.success(cards);
     }

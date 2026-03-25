@@ -7,11 +7,21 @@ export interface AiConfigSaved {
   apiKey?: string;
   model?: string;
   baseUrl?: string;
+  notePrompt?: string;
 }
+
+export const DEFAULT_AI_NOTE_PROMPT =
+  'Generate a vocabulary note for this word/phrase. Output exactly three parts in order: ' +
+  '(1) "English definition" - one short definition in English; ' +
+  '(2) "中文释义" - one concise Chinese explanation; ' +
+  '(3) "Example(s)" - 1-2 natural English sentences using the word/phrase, with optional Chinese in parentheses. ' +
+  'Use the labels above. Keep the whole note under 300 words. ' +
+  'Target: {{target}}. Context (optional): {{context}}';
 
 const defaults: AiConfigSaved = {
   model: 'gpt-3.5-turbo',
   baseUrl: 'https://api.openai.com/v1',
+  notePrompt: DEFAULT_AI_NOTE_PROMPT,
 };
 
 export function getAiConfig(): AiConfigSaved {

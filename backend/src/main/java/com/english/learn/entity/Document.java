@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 @Data
 @Entity
 @Table(name = "learn_document", indexes = {
-    @Index(name = "idx_user_id", columnList = "user_id")
+    @Index(name = "idx_learn_document_user_create_id", columnList = "user_id, gmt_create, id")
 })
 public class Document {
 
@@ -35,6 +35,13 @@ public class Document {
     /** 解析后的纯文本内容，用于前端展示与选词 */
     @Column(name = "content", columnDefinition = "LONGTEXT")
     private String content;
+
+    /**
+     * 上传原件在磁盘上的相对路径（相对 english-learn.document.storage-root），
+     * 为空表示历史数据或仅内存解析未落盘原件。
+     */
+    @Column(name = "stored_file_path", length = 512)
+    private String storedFilePath;
 
     @Column(name = "gmt_create", nullable = false, updatable = false)
     private LocalDateTime gmtCreate;

@@ -6,7 +6,7 @@ import { Result } from '../types/api';
  */
 const request = axios.create({
   baseURL: '/api',
-  timeout: 15000,
+  timeout: 30000,
 });
 
 request.interceptors.request.use((config) => {
@@ -19,6 +19,9 @@ request.interceptors.request.use((config) => {
 
 request.interceptors.response.use(
   (response) => {
+    if (response.config.responseType === 'blob') {
+      return response;
+    }
     const res = response.data as Result<unknown>;
     if (res.code !== 0) {
       return Promise.reject(new Error(res.message || '请求失败'));

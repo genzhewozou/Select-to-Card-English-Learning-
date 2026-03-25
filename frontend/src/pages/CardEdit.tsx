@@ -4,7 +4,6 @@ import { Form, Input, Button, Card, message, Space } from 'antd';
 import { SoundOutlined } from '@ant-design/icons';
 import { getCard, createCard, updateCard } from '../services/cardService';
 import { useTTS } from '../hooks/useTTS';
-import type { CardDTO } from '../types/api';
 
 /**
  * 卡片编辑页：新建或编辑卡片，表单含正面、背面。

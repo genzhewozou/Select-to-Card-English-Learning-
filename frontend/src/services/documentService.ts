@@ -32,3 +32,33 @@ export function getDocument(id: number) {
 export function deleteDocument(id: number) {
   return request.delete<Result<null>>(`/document/${id}`).then((r) => r.data.data);
 }
+
+/** 下载服务器保存的上传原件（需 originalAvailable） */
+export function downloadDocumentOriginal(id: number, fallbackFileName: string) {
+  return request
+    .get(`/document/${id}/download`, { responseType: 'blob', timeout: 120000 })
+    .then((response) => {
+      const blob = response.data as Blob;
+      const cd = response.headers['content-disposition'] as string | undefined;
+      let name = fallbackFileName;
+      if (cd) {
+        const star = cd.match(/filename\*=UTF-8''([^;]+)/i);
+        if (star?.[1]) {
+          try {
+            name = decodeURIComponent(star[1].trim());
+          } catch {
+            name = fallbackFileName;
+          }
+        } else {
+          const m = cd.match(/filename="([^"]+)"/i) || cd.match(/filename=([^;]+)/i);
+          if (m?.[1]) name = m[1].trim();
+        }
+      }
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    });
+}

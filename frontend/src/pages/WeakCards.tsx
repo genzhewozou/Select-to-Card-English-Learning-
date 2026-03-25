@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, Space, message, Tag, Card } from 'antd';
+import { Table, Button, message, Tag, Card } from 'antd';
 import { getWeakCardsPage } from '../services/reviewService';
 import type { CardDTO } from '../types/api';
 

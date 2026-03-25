@@ -17,4 +17,6 @@ public class AiGenerateNoteRequest {
     private String aiApiKey;
     private String aiModel;
     private String aiBaseUrl;
+    /** 可配置的注释生成提示词模板，支持 {{target}} / {{context}} 占位符 */
+    private String aiNotePrompt;
 }

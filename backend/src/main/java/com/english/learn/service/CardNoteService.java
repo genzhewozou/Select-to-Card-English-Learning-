@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 public class CardNoteService {
 
     private static String normalizeEmptyLines(String s) {
-        if (s == null || s.isBlank()) return s;
+        if (s == null || s.trim().isEmpty()) return s;
         return s.trim().replaceAll("\\n[\\s]*\\n", "\n");
     }
 

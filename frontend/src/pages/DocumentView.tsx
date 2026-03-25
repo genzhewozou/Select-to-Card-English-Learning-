@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button, Card, message, Modal, Input, Switch, Pagination } from 'antd';
-import { getDocument } from '../services/documentService';
+import { getDocument, downloadDocumentOriginal } from '../services/documentService';
 import { createCard, getCardRanges } from '../services/cardService';
 import { generateNote } from '../services/aiService';
 import { getAiConfig, getDocAiNoteEnabled, setDocAiNoteEnabled } from '../utils/aiConfigStorage';
@@ -68,21 +68,6 @@ export default function DocumentView() {
     }
     return merged;
   }, [doc?.content, docCards]);
-
-  /** 将文档内容拆成段落（普通文本 + 可点击高亮） */
-  const docSegments = useMemo((): DocSegment[] => {
-    if (!doc?.content) return [];
-    if (highlightRanges.length === 0) return [{ type: 'text', content: doc.content }];
-    const segments: DocSegment[] = [];
-    let pos = 0;
-    for (const r of highlightRanges) {
-      if (r.start > pos) segments.push({ type: 'text', content: doc.content.slice(pos, r.start) });
-      segments.push({ type: 'card', content: doc.content.slice(r.start, r.end), cardId: r.cardId });
-      pos = r.end;
-    }
-    if (pos < doc.content.length) segments.push({ type: 'text', content: doc.content.slice(pos) });
-    return segments;
-  }, [doc?.content, highlightRanges]);
 
   /** 按行分页：先按 \n 拆成行，每页 LINES_PER_PAGE 行，得到每页的字符区间 */
   const pageRanges = useMemo((): { start: number; end: number }[] => {
@@ -204,6 +189,7 @@ export default function DocumentView() {
       aiApiKey: config.apiKey.trim(),
       aiModel: config.model?.trim() || undefined,
       aiBaseUrl: config.baseUrl?.trim() || undefined,
+      aiNotePrompt: config.notePrompt?.trim() || undefined,
     })
       .then((content) => setBackContent(content || ''))
       .catch(() => message.error('AI 释义生成失败'))
@@ -235,16 +221,20 @@ export default function DocumentView() {
         payload.aiApiKey = config.apiKey?.trim() ?? '';
         payload.aiModel = config.model?.trim() || undefined;
         payload.aiBaseUrl = config.baseUrl?.trim() || undefined;
+        payload.aiNotePrompt = config.notePrompt?.trim() || undefined;
       }
       const created = await createCard(payload);
       setModalOpen(false);
       setSelectedText('');
       message.success('卡片已创建，可继续在文档中选词生成');
-      if (created?.id) {
-        setDocCards((prev) => [
-          { id: created.id, startOffset: created.startOffset, endOffset: created.endOffset, frontContent: created.frontContent },
-          ...prev,
-        ]);
+      if (created?.id != null) {
+        const newCard: CardRangeDTO = {
+          id: created.id,
+          startOffset: created.startOffset,
+          endOffset: created.endOffset,
+          frontContent: created.frontContent ?? '',
+        };
+        setDocCards((prev) => [newCard, ...prev]);
       }
     } catch (e) {
       message.error(e instanceof Error ? e.message : '创建失败');
@@ -261,6 +251,19 @@ export default function DocumentView() {
     <div>
       <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <Button onClick={() => navigate('/documents')}>返回列表</Button>
+        {doc.originalAvailable && (
+          <Button
+            onClick={async () => {
+              try {
+                await downloadDocumentOriginal(docId, doc.fileName);
+              } catch (e) {
+                message.error(e instanceof Error ? e.message : '下载失败');
+              }
+            }}
+          >
+            查看原件
+          </Button>
+        )}
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Switch checked={selectionPopupEnabled} onChange={handleToggleSelectionPopup} />
           <span>选词弹出创建卡片</span>
@@ -291,10 +294,10 @@ export default function DocumentView() {
                 {pageSegments.map((seg, i) =>
                   seg.type === 'text' ? (
                     <span key={i}>
-                      {seg.content.split('\n').map((line, j) => (
+                      {seg.content.split('\n').map((line, j, arr) => (
                         <span key={j}>
-                          {line}
-                          {j < seg.content.split('\n').length - 1 ? <br /> : null}
+                          {line.replace(/\[图片]/g, '')}
+                          {j < arr.length - 1 ? <br /> : null}
                         </span>
                       ))}
                     </span>
@@ -314,7 +317,7 @@ export default function DocumentView() {
                       }}
                       title="点击编辑卡片"
                     >
-                      {seg.content}
+                      {seg.content.replace(/\[图片]/g, '')}
                     </span>
                   )
                 )}

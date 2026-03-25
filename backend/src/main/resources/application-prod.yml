@@ -1,0 +1,7 @@
+# 生产环境
+# 启动：--spring.profiles.active=prod 或 SPRING_PROFILES_ACTIVE=prod
+# 服务器上先建目录（在 /home/admin/deploy 下）：
+#   cd /home/admin/deploy && mkdir -p data/documents
+english-learn:
+  document:
+    storage-root: /home/admin/deploy/data/documents

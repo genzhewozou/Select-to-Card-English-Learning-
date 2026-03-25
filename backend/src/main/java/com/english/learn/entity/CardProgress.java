@@ -12,8 +12,8 @@ import java.time.LocalDateTime;
 @Data
 @Entity
 @Table(name = "learn_card_progress", indexes = {
-    @Index(name = "idx_card_id", columnList = "card_id", unique = true),
-    @Index(name = "idx_user_next_review", columnList = "user_id, next_review_at")
+    @Index(name = "idx_learn_card_progress_card_id", columnList = "card_id", unique = true),
+    @Index(name = "idx_learn_card_progress_user_next", columnList = "user_id, next_review_at")
 })
 public class CardProgress {
 

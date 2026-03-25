@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, Table, Button, Space, message, Modal } from 'antd';
-import type { UploadFile } from 'antd';
-import { getDocumentPage, uploadDocument, deleteDocument } from '../services/documentService';
+import { getDocumentPage, uploadDocument, deleteDocument, downloadDocumentOriginal } from '../services/documentService';
 import type { DocumentDTO } from '../types/api';
 
 /**
@@ -37,7 +36,13 @@ export default function DocumentList() {
 
   const handleUpload = async (file: File) => {
     try {
-      await uploadDocument(file);
+      const created = await uploadDocument(file);
+      if (created) {
+        // 先做本地更新，避免等待分页请求返回时列表看起来“没刷新”
+        setList((prev) => [created, ...prev].slice(0, pageSize));
+        setTotal((t) => t + 1);
+        setPage(1);
+      }
       message.success('上传成功');
       load(1, pageSize);
     } catch (e) {
@@ -69,12 +74,26 @@ export default function DocumentList() {
     {
       title: '操作',
       key: 'action',
-      width: 180,
+      width: 240,
       render: (_: unknown, record: DocumentDTO) => (
         <Space>
           <Button type="link" onClick={() => navigate(`/documents/${record.id}`)}>
             查看
           </Button>
+          {record.originalAvailable && (
+            <Button
+              type="link"
+              onClick={async () => {
+                try {
+                  await downloadDocumentOriginal(record.id!, record.fileName);
+                } catch (e) {
+                  message.error(e instanceof Error ? e.message : '下载失败');
+                }
+              }}
+            >
+              原件
+            </Button>
+          )}
           <Button type="link" danger onClick={() => handleDelete(record)}>
             删除
           </Button>

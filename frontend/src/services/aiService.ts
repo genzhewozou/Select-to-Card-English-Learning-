@@ -7,6 +7,14 @@ export interface GenerateNoteParams {
   aiApiKey: string;
   aiModel?: string;
   aiBaseUrl?: string;
+  aiNotePrompt?: string;
+}
+
+export interface ChatWithAiParams {
+  message: string;
+  aiApiKey: string;
+  aiModel?: string;
+  aiBaseUrl?: string;
 }
 
 /**
@@ -17,4 +25,9 @@ export function generateNote(params: GenerateNoteParams) {
   return request
     .post<Result<string>>('/ai/generate-note', params, { timeout: 30000 })
     .then((r) => r.data.data);
+}
+
+/** 配置页聊天测试 */
+export function chatWithAi(params: ChatWithAiParams) {
+  return request.post<Result<string>>('/ai/chat', params, { timeout: 30000 }).then((r) => r.data.data);
 }

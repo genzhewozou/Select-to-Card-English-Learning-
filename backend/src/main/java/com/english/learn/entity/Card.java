@@ -12,8 +12,8 @@ import java.time.LocalDateTime;
 @Data
 @Entity
 @Table(name = "learn_card", indexes = {
-    @Index(name = "idx_user_id", columnList = "user_id"),
-    @Index(name = "idx_document_id", columnList = "document_id")
+    @Index(name = "idx_learn_card_user_id", columnList = "user_id"),
+    @Index(name = "idx_learn_card_document_id", columnList = "document_id")
 })
 public class Card {
 

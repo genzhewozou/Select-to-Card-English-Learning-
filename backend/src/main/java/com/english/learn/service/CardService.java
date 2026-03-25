@@ -42,7 +42,7 @@ public class CardService {
 
     /** 去掉连续空行，合并为单个换行并 trim，便于粘贴内容后保存更整洁 */
     private static String normalizeEmptyLines(String s) {
-        if (s == null || s.isBlank()) return s;
+        if (s == null || s.trim().isEmpty()) return s;
         return s.trim().replaceAll("\\n[\\s]*\\n", "\n");
     }
 
@@ -76,7 +76,7 @@ public class CardService {
             if (useAi && hasKey) {
                 Optional<String> aiNote = aiNoteService.generateNoteWithConfig(
                         entity.getFrontContent(), dto.getContextSentence(),
-                        dto.getAiApiKey(), dto.getAiModel(), dto.getAiBaseUrl());
+                        dto.getAiApiKey(), dto.getAiModel(), dto.getAiBaseUrl(), dto.getAiNotePrompt());
                 noteToSave = aiNote.orElse(null);
                 log.debug("AI note requested for card {}: {}", entity.getId(), noteToSave != null ? "generated" : "empty");
             } else if (useAi && !hasKey) {

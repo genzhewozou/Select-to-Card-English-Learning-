@@ -2,6 +2,8 @@ com\english\learn\controller\CardController.class
 com\english\learn\dto\LoginRequest.class
 com\english\learn\entity\Document.class
 com\english\learn\dto\CardDTO.class
+com\english\learn\dto\DocumentImageResult.class
+com\english\learn\dto\AiChatRequest.class
 com\english\learn\entity\CardNote.class
 com\english\learn\controller\UserController.class
 com\english\learn\mapper\CardMapper.class
@@ -18,9 +20,11 @@ com\english\learn\service\DocumentService.class
 com\english\learn\controller\ReviewController.class
 com\english\learn\entity\User.class
 com\english\learn\service\AiNoteService.class
+com\english\learn\dto\DocumentSummaryDTO.class
 com\english\learn\service\CardNoteService.class
 com\english\learn\service\UserService.class
 com\english\learn\dto\ai\ChatResponse.class
+com\english\learn\service\DocumentFileStorage.class
 com\english\learn\mapper\DocumentMapper.class
 com\english\learn\repository\CardProgressRepository.class
 com\english\learn\mapper\UserMapper.class
@@ -29,6 +33,7 @@ com\english\learn\dto\CardProgressDTO.class
 com\english\learn\dto\UserDTO.class
 com\english\learn\dto\ai\ChatRequest.class
 com\english\learn\dto\ai\ChatMessage.class
+com\english\learn\dto\DocumentDownloadResult.class
 com\english\learn\dto\DocumentDTO.class
 com\english\learn\repository\DocumentRepository.class
 com\english\learn\dto\CardRangeDTO.class
@@ -46,4 +51,5 @@ com\english\learn\common\Result.class
 com\english\learn\controller\DocumentController.class
 com\english\learn\controller\CardNoteController.class
 com\english\learn\common\PageResult.class
+com\english\learn\config\DocumentStorageProperties.class
 com\english\learn\dto\ai\ChatResponse$Choice.class
