@@ -13,6 +13,7 @@ com\english\learn\controller\AiController.class
 com\english\learn\repository\CardRepository.class
 com\english\learn\repository\UserRepository.class
 com\english\learn\config\WebMvcConfig.class
+com\english\learn\dto\ReviewDocumentPostponeRequest.class
 com\english\learn\service\CardService.class
 com\english\learn\EnglishLearningApplication.class
 com\english\learn\util\DocumentParseUtil.class
@@ -44,6 +45,7 @@ com\english\learn\exception\GlobalExceptionHandler.class
 com\english\learn\repository\CardRepository$CardRangeView.class
 com\english\learn\mapper\CardNoteMapper.class
 com\english\learn\entity\CardProgress.class
+com\english\learn\dto\ReviewPostponeRequest.class
 com\english\learn\service\CardProgressService.class
 com\english\learn\dto\AiGenerateNoteRequest.class
 com\english\learn\dto\ReviewRequest.class

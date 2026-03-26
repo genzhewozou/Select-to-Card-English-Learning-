@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, message, Tag, Card } from 'antd';
+import { Table, Button, message, Tag, Card, Select } from 'antd';
 import { getWeakCardsPage } from '../services/reviewService';
+import { getDocumentList } from '../services/documentService';
 import type { CardDTO } from '../types/api';
+import type { DocumentDTO } from '../types/api';
 
 /**
  * 错题本：熟练度 1-2 的卡片列表，支持「只复习错题」进入复习流程。
@@ -14,11 +16,13 @@ export default function WeakCards() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
+  const [documents, setDocuments] = useState<DocumentDTO[]>([]);
+  const [filterDocumentId, setFilterDocumentId] = useState<number | undefined>(undefined);
 
   const load = async (p = page, s = pageSize) => {
     setLoading(true);
     try {
-      const data = await getWeakCardsPage(p, s);
+      const data = await getWeakCardsPage(p, s, filterDocumentId);
       setList(data?.list ?? []);
       setTotal(data?.total ?? 0);
       setPage(data?.page ?? p);
@@ -31,8 +35,12 @@ export default function WeakCards() {
   };
 
   useEffect(() => {
-    load();
+    getDocumentList().then(setDocuments).catch(() => setDocuments([]));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [filterDocumentId]);
 
   const columns = [
     { title: '正面', dataIndex: 'frontContent', key: 'frontContent', ellipsis: true, width: 200 },
@@ -64,11 +72,38 @@ export default function WeakCards() {
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <h2 style={{ margin: 0 }}>错题本</h2>
-        <Button type="primary" onClick={() => navigate('/review?mode=weak')}>
+        <Button
+          type="primary"
+          onClick={() =>
+            navigate(
+              filterDocumentId != null
+                ? `/review?mode=weak&documentId=${filterDocumentId}`
+                : '/review?mode=weak',
+            )
+          }
+        >
           开始复习错题
         </Button>
       </div>
       <Card>
+        <div style={{ marginBottom: 16 }}>
+          <Select
+            placeholder="按文档筛选错题"
+            allowClear
+            style={{ width: 280 }}
+            value={filterDocumentId ?? null}
+            onChange={(v) => {
+              setFilterDocumentId(v != null ? v : undefined);
+              setPage(1);
+            }}
+            options={[
+              { value: null, label: '全部文档' },
+              ...documents
+                .filter((d) => d.id != null)
+                .map((d) => ({ value: d.id!, label: d.fileName })),
+            ]}
+          />
+        </div>
         <p style={{ color: '#666', marginBottom: 16 }}>
           以下为熟练度 1～2 级的卡片，可在此集中复习或点击「开始复习错题」进入复习流程。
         </p>

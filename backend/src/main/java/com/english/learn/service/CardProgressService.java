@@ -1,6 +1,8 @@
 package com.english.learn.service;
 
 import com.english.learn.dto.CardProgressDTO;
+import com.english.learn.dto.ReviewDocumentPostponeRequest;
+import com.english.learn.dto.ReviewPostponeRequest;
 import com.english.learn.dto.ReviewRequest;
 import com.english.learn.entity.Card;
 import com.english.learn.entity.CardProgress;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -87,6 +90,18 @@ public class CardProgressService {
                 .collect(Collectors.toList());
     }
 
+    /** 今日及之前到期的卡片 ID 列表（可按文档过滤） */
+    public List<Long> findDueCardIds(Long userId, Long documentId) {
+        List<Long> dueIds = findDueCardIds(userId);
+        if (documentId == null || dueIds.isEmpty()) {
+            return dueIds;
+        }
+        Set<Long> idsInDocument = cardRepository.findByUserIdAndDocumentId(userId, documentId).stream()
+                .map(Card::getId)
+                .collect(Collectors.toCollection(HashSet::new));
+        return dueIds.stream().filter(idsInDocument::contains).collect(Collectors.toList());
+    }
+
     /** 熟练度 <= maxLevel 的卡片 ID 列表（如 maxLevel=2 表示错题本） */
     public List<Long> findCardIdsByProficiencyMax(Long userId, int maxLevel) {
         return cardProgressRepository.findByUserIdAndProficiencyLevelLessThanEqual(userId, maxLevel).stream()
@@ -100,5 +115,68 @@ public class CardProgressService {
         int s = Math.max(1, Math.min(size, 100));
         PageRequest pr = PageRequest.of(p - 1, s, Sort.by(Sort.Direction.DESC, "gmtModified"));
         return cardProgressRepository.findWeakCardIds(userId, maxLevel, pr);
+    }
+
+    /** 错题卡片 ID 列表（可按文档过滤） */
+    public List<Long> findWeakCardIds(Long userId, int maxLevel, Long documentId) {
+        List<Long> weakIds = cardProgressRepository.findByUserIdAndProficiencyLevelLessThanEqual(userId, maxLevel).stream()
+                .map(CardProgress::getCardId)
+                .collect(Collectors.toList());
+        if (documentId == null || weakIds.isEmpty()) {
+            return weakIds;
+        }
+        Set<Long> idsInDocument = cardRepository.findByUserIdAndDocumentId(userId, documentId).stream()
+                .map(Card::getId)
+                .collect(Collectors.toCollection(HashSet::new));
+        return weakIds.stream().filter(idsInDocument::contains).collect(Collectors.toList());
+    }
+
+    /** 延后复习：将下次复习时间顺延指定天数。 */
+    @Transactional(rollbackFor = Exception.class)
+    public CardProgressDTO postponeReview(Long userId, ReviewPostponeRequest request) {
+        Card card = cardRepository.findById(request.getCardId()).orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
+        if (!card.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("无权限");
+        }
+        int days = validatePostponeDays(request.getDays());
+        CardProgress progress = postponeCard(userId, request.getCardId(), days);
+        return CardProgressMapper.toDTO(progress);
+    }
+
+    /** 文档级延后：对文档下全部卡片统一顺延 1/2/7 天，返回影响卡片数。 */
+    @Transactional(rollbackFor = Exception.class)
+    public int postponeByDocument(Long userId, ReviewDocumentPostponeRequest request) {
+        int days = validatePostponeDays(request.getDays());
+        long totalCards = cardRepository.countByUserIdAndDocumentId(userId, request.getDocumentId());
+        if (totalCards <= 0) {
+            return 0;
+        }
+        // 1) 先补齐没有进度的卡片；2) 再一条 SQL 批量更新 next_review_at
+        cardProgressRepository.insertMissingProgressByDocument(userId, request.getDocumentId());
+        LocalDateTime nextReviewAt = LocalDateTime.now().plusDays(days);
+        cardProgressRepository.bulkUpdateNextReviewAtByDocument(userId, request.getDocumentId(), nextReviewAt);
+        return (int) totalCards;
+    }
+
+    private int validatePostponeDays(Integer days) {
+        int d = days == null ? 0 : days;
+        if (d != 1 && d != 2 && d != 7) {
+            throw new IllegalArgumentException("仅支持延后 1/2/7 天");
+        }
+        return d;
+    }
+
+    private CardProgress postponeCard(Long userId, Long cardId, int days) {
+        CardProgress progress = cardProgressRepository.findByUserIdAndCardId(userId, cardId)
+                .orElseGet(() -> {
+                    CardProgress p = new CardProgress();
+                    p.setUserId(userId);
+                    p.setCardId(cardId);
+                    p.setReviewCount(0);
+                    return p;
+                });
+        // 业务约定：延后应基于「当前操作时间」重算，而非在历史 nextReviewAt 上累加
+        progress.setNextReviewAt(LocalDateTime.now().plusDays(days));
+        return cardProgressRepository.save(progress);
     }
 }

@@ -93,3 +93,13 @@ export interface ReviewRequest {
   cardId: number;
   proficiencyLevel: number; // 1-5
 }
+
+export interface ReviewPostponeRequest {
+  cardId: number;
+  days: 1 | 2 | 7;
+}
+
+export interface ReviewDocumentPostponeRequest {
+  documentId: number;
+  days: 1 | 2 | 7;
+}

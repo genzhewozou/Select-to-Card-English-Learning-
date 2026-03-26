@@ -20,6 +20,8 @@ public interface CardRepository extends JpaRepository<Card, Long> {
 
     List<Card> findByUserIdAndDocumentId(Long userId, Long documentId);
 
+    long countByUserIdAndDocumentId(Long userId, Long documentId);
+
     Page<Card> findByUserIdOrderByGmtCreateDesc(Long userId, Pageable pageable);
 
     Page<Card> findByUserIdAndDocumentIdOrderByGmtCreateDesc(Long userId, Long documentId, Pageable pageable);

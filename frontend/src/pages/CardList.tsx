@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, Space, message, Modal, Tag, Input, Select, Checkbox } from 'antd';
+import { Table, Button, Space, message, Modal, Tag, Input, Select, Checkbox, Dropdown } from 'antd';
+import type { MenuProps } from 'antd';
 import { getCardPage, deleteCard } from '../services/cardService';
+import { postponeReview, postponeReviewByDocument } from '../services/reviewService';
 import { getDocumentList } from '../services/documentService';
 import type { CardDTO } from '../types/api';
 import type { DocumentDTO } from '../types/api';
@@ -21,6 +23,8 @@ export default function CardList() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
+  const [postponeLoadingKey, setPostponeLoadingKey] = useState<string>('');
+  const [documentPostponeLoading, setDocumentPostponeLoading] = useState(false);
 
   const load = async (opts?: { keyword?: string; page?: number; size?: number }) => {
     setLoading(true);
@@ -72,6 +76,38 @@ export default function CardList() {
     });
   };
 
+  const handlePostpone = async (record: CardDTO, days: 1 | 2 | 7) => {
+    if (!record.id) return;
+    const key = `${record.id}-${days}`;
+    setPostponeLoadingKey(key);
+    try {
+      await postponeReview({ cardId: record.id, days });
+      message.success(`已将该卡片延后 ${days} 天`);
+      load();
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '延后失败');
+    } finally {
+      setPostponeLoadingKey('');
+    }
+  };
+
+  const handleDocumentPostpone = async (days: 1 | 2 | 7) => {
+    if (filterDocumentId == null) {
+      message.info('请先选择一个文档');
+      return;
+    }
+    setDocumentPostponeLoading(true);
+    try {
+      const affected = await postponeReviewByDocument({ documentId: filterDocumentId, days });
+      message.success(`已将当前文档 ${affected} 张卡片延后 ${days} 天`);
+      load();
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '文档级延后失败');
+    } finally {
+      setDocumentPostponeLoading(false);
+    }
+  };
+
   const columns = [
     { title: '正面', dataIndex: 'frontContent', key: 'frontContent', ellipsis: true, width: 200 },
     { title: '背面', dataIndex: 'backContent', key: 'backContent', ellipsis: true, width: 200 },
@@ -98,7 +134,7 @@ export default function CardList() {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 280,
       render: (_: unknown, record: CardDTO) => (
         <Space>
           <Button type="link" onClick={() => navigate(`/cards/${record.id}/edit`)}>
@@ -112,6 +148,20 @@ export default function CardList() {
           <Button type="link" danger onClick={() => handleDelete(record)}>
             删除
           </Button>
+          <Dropdown.Button
+            type="link"
+            loading={postponeLoadingKey.startsWith(`${record.id}-`)}
+            menu={{
+              items: [
+                { key: '2', label: '延后2天' },
+                { key: '7', label: '延后7天' },
+              ] as MenuProps['items'],
+              onClick: ({ key }) => handlePostpone(record, Number(key) as 2 | 7),
+            }}
+            onClick={() => handlePostpone(record, 1)}
+          >
+            延后1天
+          </Dropdown.Button>
         </Space>
       ),
     },
@@ -155,6 +205,29 @@ export default function CardList() {
         <Checkbox checked={filterDueToday} onChange={(e) => setFilterDueToday(e.target.checked)}>
           今日待复习
         </Checkbox>
+        <Button onClick={() => navigate(filterDocumentId != null ? `/review?documentId=${filterDocumentId}` : '/review')}>
+          {filterDocumentId != null ? '复习当前文档' : '开始全部复习'}
+        </Button>
+        <Button
+          disabled={filterDocumentId == null}
+          onClick={() => navigate(filterDocumentId != null ? `/review?documentId=${filterDocumentId}&relearn=1` : '/review?relearn=1')}
+        >
+          重新复习当前文档
+        </Button>
+        <Dropdown.Button
+          disabled={filterDocumentId == null}
+          loading={documentPostponeLoading}
+          menu={{
+            items: [
+              { key: '2', label: '当前文档延后2天' },
+              { key: '7', label: '当前文档延后7天' },
+            ] as MenuProps['items'],
+            onClick: ({ key }) => handleDocumentPostpone(Number(key) as 2 | 7),
+          }}
+          onClick={() => handleDocumentPostpone(1)}
+        >
+          当前文档延后1天
+        </Dropdown.Button>
       </div>
       <Table
         rowKey="id"

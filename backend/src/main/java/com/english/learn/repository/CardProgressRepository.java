@@ -4,9 +4,12 @@ import com.english.learn.entity.CardProgress;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Collection;
@@ -39,4 +42,25 @@ public interface CardProgressRepository extends JpaRepository<CardProgress, Long
     /** 错题本分页：直接在 progress 上分页，保证 total/分页准确 */
     @Query("SELECT p.cardId FROM CardProgress p WHERE p.userId = :userId AND p.proficiencyLevel <= :maxLevel ORDER BY p.gmtModified DESC")
     Page<Long> findWeakCardIds(Long userId, Integer maxLevel, Pageable pageable);
+
+    /** 为文档下缺失进度记录的卡片批量补齐空进度（避免逐条 save）。 */
+    @Modifying
+    @Query(value = "INSERT INTO learn_card_progress (user_id, card_id, review_count, next_review_at, gmt_create, gmt_modified) " +
+            "SELECT c.user_id, c.id, 0, NOW(), NOW(), NOW() " +
+            "FROM learn_card c " +
+            "LEFT JOIN learn_card_progress p ON p.user_id = c.user_id AND p.card_id = c.id " +
+            "WHERE c.user_id = :userId AND c.document_id = :documentId AND p.id IS NULL",
+            nativeQuery = true)
+    int insertMissingProgressByDocument(@Param("userId") Long userId, @Param("documentId") Long documentId);
+
+    /** 批量更新文档下全部卡片的 next_review_at。 */
+    @Modifying
+    @Query(value = "UPDATE learn_card_progress p " +
+            "JOIN learn_card c ON c.id = p.card_id AND c.user_id = p.user_id " +
+            "SET p.next_review_at = :nextReviewAt, p.gmt_modified = NOW() " +
+            "WHERE p.user_id = :userId AND c.document_id = :documentId",
+            nativeQuery = true)
+    int bulkUpdateNextReviewAtByDocument(@Param("userId") Long userId,
+                                         @Param("documentId") Long documentId,
+                                         @Param("nextReviewAt") LocalDateTime nextReviewAt);
 }
