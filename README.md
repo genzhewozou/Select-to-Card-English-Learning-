@@ -203,6 +203,31 @@ english-learning-system/
 | GET  | `/api/review/weak` | 错题本（熟练度 1–2） |
 | POST | `/api/review/submit` | 提交复习（cardId, proficiencyLevel 1–5） |
 
+### 复习间隔计算规则（2026-03 更新）
+
+- 实现位置：`backend/src/main/java/com/english/learn/util/EbbinghausUtil.java`
+- 基础间隔（按熟练度 1-5，单位分钟）：
+  - 1: `1200`（20小时）
+  - 2: `2160`（1天半）
+  - 3: `2880`（2天）
+  - 4: `7200`（5天）
+  - 5: `10080`（7天）
+- 计算公式：
+  - `multiplier = 1.3 ^ min(reviewCount - 1, 10)`
+  - `totalMinutes = int(baseMinutes * multiplier)`
+  - `nextReviewAt = now + totalMinutes`
+  - 最大间隔上限为 1 年（`525600` 分钟）
+
+前 6 次复习示例（`reviewCount=1..6`，为相对“当前时间”的下次间隔）：
+
+| 熟练度 | 第1次 | 第2次 | 第3次 | 第4次 | 第5次 | 第6次 |
+|------|------|------|------|------|------|------|
+| 1 | 20h | 1d2h | 1d9h48m | 1d19h56m | 2d9h7m | 3d2h15m |
+| 2 | 1d12h | 1d22h48m | 2d12h50m | 3d7h5m | 4d6h49m | 5d13h39m |
+| 3 | 2d | 2d14h24m | 3d9h7m | 4d9h27m | 5d17h5m | 7d10h13m |
+| 4 | 5d | 6d12h | 8d10h48m | 10d23h38m | 14d6h43m | 18d13h33m |
+| 5 | 7d | 9d2h24m | 11d19h55m | 15d9h5m | 19d23h49m | 25d23h46m |
+
 ### AI（可选）
 
 | 方法 | 路径 | 说明 |

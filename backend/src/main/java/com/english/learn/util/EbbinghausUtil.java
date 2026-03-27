@@ -1,7 +1,6 @@
 package com.english.learn.util;
 
 import java.time.LocalDateTime;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 艾宾浩斯遗忘曲线工具类。
@@ -13,8 +12,8 @@ public final class EbbinghausUtil {
     private EbbinghausUtil() {
     }
 
-    /** 熟练度 1-5 对应的基础间隔（分钟）：1 最不熟，5 最熟 */
-    private static final int[] BASE_INTERVAL_MINUTES = { 30, 60, 120, 360, 720 };
+    /** 熟练度 1-5 对应的基础间隔（分钟）：20小时、1天半、2天、5天、7天 */
+    private static final int[] BASE_INTERVAL_MINUTES = { 1200, 2160, 2880, 7200, 10080 };
 
     /**
      * 根据复习次数与熟练度计算下次复习时间。
@@ -26,8 +25,8 @@ public final class EbbinghausUtil {
     public static LocalDateTime nextReviewAt(int reviewCount, int proficiencyLevel) {
         int level = Math.max(1, Math.min(5, proficiencyLevel));
         int baseMinutes = BASE_INTERVAL_MINUTES[level - 1];
-        // 复习次数越多，间隔按倍数增加（简化版：每次约 1.5 倍）
-        double multiplier = Math.pow(1.5, Math.min(reviewCount - 1, 10));
+        // 复习次数越多，间隔按倍数增加（简化版：每次约 1.3 倍）
+        double multiplier = Math.pow(1.3, Math.min(reviewCount - 1, 10));
         int totalMinutes = (int) (baseMinutes * multiplier);
         totalMinutes = Math.min(totalMinutes, 60 * 24 * 365); // 最多一年
         return LocalDateTime.now().plusMinutes(totalMinutes);
