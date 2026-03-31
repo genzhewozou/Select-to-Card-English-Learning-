@@ -1,272 +1,103 @@
 # 划词成卡 · Select-to-Card
 
-> 在文档中**划词 / 选句**即可生成学习卡片，支持 AI 释义、艾宾浩斯复习与错题本。
-
-前后端分离的英语学习系统：上传 Word/TXT 文档，在正文中选中单词或句子一键生成闪卡，可选用 AI 自动生成释义与例句，按熟练度与艾宾浩斯曲线安排复习，并支持文档内高亮已生成卡片、卡片筛选与错题本。
+一个面向英语学习的文档记忆工具：你可以在文档中划词生成卡片，再通过复习与测验把词真正记住。
 
 ---
 
-## ✨ 功能特性
+## 项目是做什么的
 
-- **划词成卡**：在文档正文中选中文字即可弹出「生成学习卡片」，正面为选中内容，背面可手填或由 AI 生成
-- **结构化释义（可选）**：编辑卡片时可一键调用 AI（内置 JSON schema）生成「义项-例句-同义词-扩展块」，并自动汇总到背面
-- **文档内高亮**：正文中已生成卡片的词句会高亮显示，点击可跳转编辑；卡片编辑/列表页支持「在文档中定位」
-- **艾宾浩斯复习**：「学习复习」页按下次复习时间展示今日待复习卡片，提交熟练度（1–5）后自动计算下次复习时间
-- **错题本**：熟练度 1–2 的卡片单独列表，支持「只复习错题」
-- **文档测验（Quiz）**：按文档随机抽取例句出题，作答结果会话入库，支持错题再练
-- **卡片筛选与搜索**：按文档、关键词（正面/背面）、熟练度、今日待复习筛选
-- **文档管理**：上传 Word(.doc/.docx)、TXT，列表与查看正文
+`Select-to-Card` 把“阅读文档”和“背单词”连接在一起：
+
+- 在原文里直接选中词或短句，一键生成卡片
+- 卡片支持释义、同义词、例句等结构化内容
+- 系统按学习表现安排复习，减少“学了就忘”
+- 提供测验与错题再练，形成闭环
 
 ---
 
-## 🛠 技术栈
+## 核心功能
 
-| 端 | 技术 |
-|----|------|
-| 后端 | Spring Boot 2.7、Spring Data JPA、MySQL / TiDB、Apache POI（文档解析） |
-| 前端 | React 18、TypeScript、Vite、Ant Design 5、React Router 6、Axios |
-| 规范 | REST API、统一 JSON 返回（code/message/data） |
+- **文档学习**
+  - 上传文档并在线阅读
+  - 在正文中划词/选句创建卡片
+  - 已建卡内容在文档中高亮，可定位回原文
 
----
+- **卡片管理**
+  - 卡片支持手动编辑
+  - 可生成结构化内容（义项、例句、同义词、扩展提示）
+  - 支持按文档、关键词、熟练度筛选
 
-## 📋 前置要求
+- **智能复习**
+  - 今日待复习自动汇总
+  - 提交熟练度后自动更新下次复习时间
+  - 低熟练度卡片可集中复习
 
-- **JDK 8+**（后端）
-- **Node.js 18+**、**npm**（前端）
-- **MySQL 5.7+** 或 **TiDB**（需先创建数据库，如 `github_sample`）
-
----
-
-## 🚀 快速开始
-
-### 1. 克隆项目
-
-```bash
-git clone <your-repo-url>
-cd english-learning-system
-```
-
-### 2. 配置数据库
-
-编辑 `backend/src/main/resources/application.yml`，修改数据源：
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:mysql://<host>:<port>/<database>?useSSL=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8
-    username: <your-username>
-    password: <your-password>
-```
-
-- 使用 TiDB 时注意端口（如 4000）与 SSL 参数。
-- `serverTimezone=Asia/Shanghai` 建议保留，与「今日复习」逻辑一致。
-
-### 3. 启动后端
-
-```bash
-cd backend
-mvn spring-boot:run
-```
-
-- 服务地址：`http://localhost:8080`
-- 接口前缀：`/api`，即根路径为 `http://localhost:8080/api`
-- JPA 默认 `ddl-auto: update`，首次启动会自动建表
-
-### 4. 启动前端
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-- 浏览器访问：`http://localhost:3000`
-- Vite 已配置开发代理，将 `/api` 转发到后端
-
-### 5. 使用说明
-
-- 未登录会跳转登录页；可先注册再登录。
-- 后端通过请求头 `X-User-Id` 识别用户（前端登录后会自动携带）；生产环境建议改为 JWT 或 Session。
+- **测验与反馈**
+  - 按文档生成测验会话
+  - 组合题支持“词条 + 翻译”双阶段作答
+  - 提交后展示判分、反馈和参考答案
+  - 支持错题再练与历史结果回看
 
 ---
 
-## ⚙️ 配置说明
+## 使用流程（推荐）
 
-### 数据库
+1. **导入文档**  
+   先上传你要学习的英文材料（如课文、文章、笔记）。
 
-| 配置项 | 说明 |
-|--------|------|
-| `spring.datasource.url` | JDBC 地址，建议带 `serverTimezone=Asia/Shanghai` |
-| `spring.datasource.username` / `password` | 数据库账号密码 |
-| `spring.jpa.hibernate.ddl-auto` | 默认 `update`，表结构随实体自动更新 |
+2. **划词建卡**  
+   阅读时遇到重点词句，直接选中并生成卡片。
 
-### 可选：开发环境
+3. **完善卡片内容**  
+   补充释义、同义词、例句，必要时使用 AI 辅助生成。
 
-- 使用 `application-dev.yml` 时在启动参数中加：`--spring.profiles.active=dev`
-- 可覆盖数据源、开启 SQL 日志等
+4. **每日复习**  
+   在“学习复习”里完成当天任务，持续刷新熟练度。
 
-### AI 注释（可选）
-
-- 在前端「设置」页填写 API Key、模型名、接口地址（如 OpenAI 或兼容接口）。
-- 配置仅保存在浏览器本地，后端不存储；在文档页开启「AI 注释」后，生成卡片弹窗会自动请求生成释义与例句。
-
-### 文件上传
-
-- 默认最大 20MB：`spring.servlet.multipart.max-file-size`、`max-request-size` 可在 `application.yml` 中修改。
+5. **做测验查漏补缺**  
+   进入“文档测验”，做完后看反馈，再对错题加强训练。
 
 ---
 
-## 📁 项目结构
+## 快速开始
 
-```
-english-learning-system/
-├── backend/                    # Spring Boot 后端
-│   └── src/main/
-│       ├── java/com/english/learn/
-│       │   ├── common/         # 统一返回 Result
-│       │   ├── config/         # Web、CORS、AI RestTemplate
-│       │   ├── controller/     # REST 控制器
-│       │   ├── dto/            # 请求/响应 DTO
-│       │   ├── entity/         # JPA 实体
-│       │   ├── exception/      # 全局异常处理
-│       │   ├── mapper/         # Entity-DTO 转换
-│       │   ├── repository/     # JPA Repository
-│       │   ├── service/        # 业务逻辑
-│       │   └── util/           # 文档解析、艾宾浩斯
-│       └── resources/
-│           ├── application.yml
-│           └── application-dev.yml
-└── frontend/                   # React 前端
-    └── src/
-        ├── components/         # 布局、导航
-        ├── pages/              # 登录、文档、卡片、复习、错题本、设置
-        ├── services/           # API 封装
-        ├── types/              # TypeScript 类型
-        └── utils/              # axios、AI 配置存储等
-```
+1. 配置好数据库连接（`backend/src/main/resources/application.yml`）
+2. 启动后端服务
+3. 启动前端服务
+4. 打开页面后注册/登录并开始使用
+
+> 首次使用建议先上传一篇短文，创建 10~20 张卡片，再进行一次完整测验。
 
 ---
 
-## 📡 API 概览
+## 页面说明
 
-统一返回格式：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": { ... }
-}
-```
-
-### 用户
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/user/register` | 注册 |
-| POST | `/api/user/login` | 登录 |
-| GET  | `/api/user/{id}` | 用户详情 |
-| PUT  | `/api/user/{id}` | 更新用户 |
-
-### 文档
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST   | `/api/document/upload` | 上传文档（multipart/file） |
-| GET    | `/api/document/list` | 文档列表 |
-| GET    | `/api/document/{id}` | 文档详情（含 content） |
-| DELETE | `/api/document/{id}` | 删除文档 |
-
-### 卡片
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST   | `/api/card` | 创建卡片 |
-| GET    | `/api/card/list` | 卡片列表，支持 `documentId`、`keyword`、`proficiencyMax`、`dueToday` |
-| GET    | `/api/card/{id}` | 卡片详情 |
-| PUT    | `/api/card/{id}` | 更新卡片 |
-| DELETE | `/api/card/{id}` | 删除卡片 |
-
-### 结构化卡片内容
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/card/{id}/structured/generate` | 调 AI 生成结构化释义并落库 |
-| PUT  | `/api/card/{id}/structured` | 手动保存结构化义项树（全量覆盖） |
-
-### 复习
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET  | `/api/review/today` | 今日待复习卡片（next_review_at ≤ 当前时间 + 从未复习） |
-| GET  | `/api/review/weak` | 错题本（熟练度 1–2） |
-| POST | `/api/review/submit` | 提交复习（cardId, proficiencyLevel 1–5） |
-
-### 文档测验（Quiz）
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/quiz/session` | 创建测验会话（按文档随机抽题） |
-| POST | `/api/quiz/session/{sessionId}/answer` | 提交单题答案 |
-| GET  | `/api/quiz/session/{sessionId}` | 获取会话题目（用于恢复进行中的测验） |
-| GET  | `/api/quiz/session/{sessionId}/result` | 查看会话结果 |
-| GET  | `/api/quiz/session/list` | 最近会话列表（用于回看历史） |
-| POST | `/api/quiz/session/{sessionId}/retry-wrong` | 用错题创建新会话 |
-
-### 复习间隔计算规则（2026-03 更新）
-
-- 实现位置：`backend/src/main/java/com/english/learn/util/EbbinghausUtil.java`
-- 基础间隔（按熟练度 1-5，单位分钟）：
-  - 1: `1200`（20小时）
-  - 2: `2160`（1天半）
-  - 3: `2880`（2天）
-  - 4: `7200`（5天）
-  - 5: `10080`（7天）
-- 计算公式：
-  - `multiplier = 1.3 ^ min(reviewCount - 1, 10)`
-  - `totalMinutes = int(baseMinutes * multiplier)`
-  - `nextReviewAt = now + totalMinutes`
-  - 最大间隔上限为 1 年（`525600` 分钟）
-
-前 6 次复习示例（`reviewCount=1..6`，为相对“当前时间”的下次间隔）：
-
-| 熟练度 | 第1次 | 第2次 | 第3次 | 第4次 | 第5次 | 第6次 |
-|------|------|------|------|------|------|------|
-| 1 | 20h | 1d2h | 1d9h48m | 1d19h56m | 2d9h7m | 3d2h15m |
-| 2 | 1d12h | 1d22h48m | 2d12h50m | 3d7h5m | 4d6h49m | 5d13h39m |
-| 3 | 2d | 2d14h24m | 3d9h7m | 4d9h27m | 5d17h5m | 7d10h13m |
-| 4 | 5d | 6d12h | 8d10h48m | 10d23h38m | 14d6h43m | 18d13h33m |
-| 5 | 7d | 9d2h24m | 11d19h55m | 15d9h5m | 19d23h49m | 25d23h46m |
-
-### AI（可选）
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/ai/generate-note` | 仅生成注释文案（不创建卡片），请求体含 frontContent、contextSentence、aiApiKey、aiModel、aiBaseUrl |
+- **文档页**：上传、阅读、划词建卡、文档内高亮定位
+- **卡片页**：查看与编辑卡片、搜索筛选
+- **学习复习页**：今日待复习、熟练度提交
+- **错题页**：低熟练度卡片集中复习
+- **测验页**：按文档出题、题后反馈、错题再练、历史回看
+- **设置页**：可选 AI 参数配置
 
 ---
 
-## 🗄 数据库表（JPA 自动建表）
+## 项目特点
 
-| 表名 | 说明 |
-|------|------|
-| `learn_user` | 用户 |
-| `learn_document` | 文档（含 content 纯文本） |
-| `learn_card` | 卡片（正面/背面、documentId、startOffset/endOffset 等） |
-| `learn_card_sense` | 卡片义项（一词多义） |
-| `learn_card_example` | 义项下例句（测验题源） |
-| `learn_card_synonym` | 义项下同义词（仅展示） |
-| `learn_card_global_extra` | 卡片扩展块（搭配、提示、高阶句） |
-| `learn_card_progress` | 学习进度（熟练度、复习次数、下次复习时间） |
-| `learn_quiz_session` | 测验会话 |
-| `learn_quiz_session_item` | 测验题项（作答记录） |
-
-- 下次复习时间由 `EbbinghausUtil.nextReviewAt(reviewCount, proficiencyLevel)` 按艾宾浩斯曲线计算。
-- 「今日待复习」使用 SQL 条件 `next_review_at <= NOW()`，与数据源时区（建议 `Asia/Shanghai`）一致。
-- 初始化 SQL 已同步到：`backend/src/main/resources/sql/init.sql`
+- **从阅读到记忆一体化**：不需要在多个工具间切换
+- **结构化学习内容**：不仅记单词，还记语境与用法
+- **过程可追踪**：每次复习和测验都有记录可回看
+- **对学习友好**：支持分阶段作答、即时反馈、错题强化
 
 ---
 
-## 📄 License
+## 适合谁用
+
+- 想通过阅读积累词汇的人
+- 需要把“见词会认”提升到“会用会写”的学习者
+- 希望建立长期复习节奏、减少遗忘的人
+
+---
+
+## License
 
 MIT
