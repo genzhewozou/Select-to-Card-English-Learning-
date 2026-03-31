@@ -1,17 +1,15 @@
 package com.english.learn.service;
 
 import com.english.learn.dto.CardDTO;
-import com.english.learn.dto.CardNoteDTO;
+import com.english.learn.dto.CardGlobalExtraDTO;
 import com.english.learn.dto.CardProgressDTO;
 import com.english.learn.dto.CardRangeDTO;
+import com.english.learn.dto.CardSenseDTO;
 import com.english.learn.entity.Card;
-import com.english.learn.entity.CardNote;
 import com.english.learn.entity.CardProgress;
 import com.english.learn.mapper.CardMapper;
-import com.english.learn.mapper.CardNoteMapper;
 import com.english.learn.mapper.CardProgressMapper;
 import com.english.learn.repository.CardRepository;
-import com.english.learn.repository.CardNoteRepository;
 import com.english.learn.repository.CardProgressRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,8 +30,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 卡片业务服务：CRUD、关联注释与进度；创建时可选 AI 生成注释。
- * 保存时自动去掉背面/注释内容中的空行（连续换行合并为单个换行）。
+ * 卡片业务服务：CRUD、关联结构化释义与进度。
+ * 保存时自动去掉背面内容中的空行（连续换行合并为单个换行）。
  */
 @Slf4j
 @Service
@@ -47,10 +45,10 @@ public class CardService {
     }
 
     private final CardRepository cardRepository;
-    private final CardNoteRepository cardNoteRepository;
     private final CardProgressRepository cardProgressRepository;
     private final CardProgressService cardProgressService;
     private final AiNoteService aiNoteService;
+    private final CardStructuredContentService cardStructuredContentService;
 
     @Transactional(rollbackFor = Exception.class)
     public CardDTO create(CardDTO dto) {
@@ -66,10 +64,11 @@ public class CardService {
         progress.setReviewCount(0);
         progress.setNextReviewAt(LocalDateTime.now());
         cardProgressRepository.save(progress);
-        // 注释来源：优先使用前端已生成好的 aiNoteContent，否则再根据 useAiNote+aiApiKey 调 AI
-        String noteToSave = null;
+
+        // 创建阶段：若背面来自 AI（或请求要求后端生成），自动解析为结构化义项树并落库。
+        String noteText = null;
         if (dto.getAiNoteContent() != null && !dto.getAiNoteContent().trim().isEmpty()) {
-            noteToSave = normalizeEmptyLines(dto.getAiNoteContent());
+            noteText = normalizeEmptyLines(dto.getAiNoteContent());
         } else {
             boolean useAi = Boolean.TRUE.equals(dto.getUseAiNote());
             boolean hasKey = dto.getAiApiKey() != null && !dto.getAiApiKey().trim().isEmpty();
@@ -77,21 +76,19 @@ public class CardService {
                 Optional<String> aiNote = aiNoteService.generateNoteWithConfig(
                         entity.getFrontContent(), dto.getContextSentence(),
                         dto.getAiApiKey(), dto.getAiModel(), dto.getAiBaseUrl(), dto.getAiNotePrompt());
-                noteToSave = aiNote.orElse(null);
-                log.debug("AI note requested for card {}: {}", entity.getId(), noteToSave != null ? "generated" : "empty");
-            } else if (useAi && !hasKey) {
-                log.warn("Create card: useAiNote=true but aiApiKey missing or blank, skip AI");
+                noteText = aiNote.map(CardService::normalizeEmptyLines).orElse(null);
             }
         }
-        final long cardId = entity.getId();
-        if (noteToSave != null) {
+        if (noteText != null && !noteText.trim().isEmpty()) {
+            // 若前端未填 backContent，则用 AI 内容补齐；随后尝试解析并覆盖为结构化汇总背面。
+            if (entity.getBackContent() == null || entity.getBackContent().trim().isEmpty()) {
+                entity.setBackContent(noteText);
+                entity = cardRepository.save(entity);
+            }
             try {
-                CardNote note = new CardNote();
-                note.setCardId(cardId);
-                note.setContent(normalizeEmptyLines(noteToSave));
-                cardNoteRepository.save(note);
+                cardStructuredContentService.tryApplyFromNoteText(entity.getId(), entity.getUserId(), noteText);
             } catch (Exception e) {
-                log.warn("Save AI note failed for card {}: {}", cardId, e.getMessage());
+                log.warn("Parse AI note to structured failed for card {}: {}", entity.getId(), e.getMessage());
             }
         }
         return fillAssociations(CardMapper.toDTO(entity, false), entity);
@@ -239,14 +236,14 @@ public class CardService {
         if (!card.getUserId().equals(userId)) {
             throw new IllegalArgumentException("无权限删除该卡片");
         }
-        cardNoteRepository.findByCardId(id).forEach(cardNoteRepository::delete);
+        cardStructuredContentService.clearStructure(id);
         cardProgressRepository.findByUserIdAndCardId(userId, id).ifPresent(cardProgressRepository::delete);
         cardRepository.delete(card);
     }
 
     private CardDTO fillAssociations(CardDTO dto, Card entity) {
-        dto.setNotes(cardNoteRepository.findByCardId(entity.getId()).stream()
-                .map(CardNoteMapper::toDTO).collect(Collectors.toList()));
+        dto.setSenses(cardStructuredContentService.loadSensesForCard(entity.getId()));
+        dto.setGlobalExtra(cardStructuredContentService.loadGlobalForCard(entity.getId()));
         cardProgressRepository.findByUserIdAndCardId(entity.getUserId(), entity.getId())
                 .ifPresent(p -> dto.setProgress(CardProgressMapper.toDTO(p)));
         return dto;
@@ -255,7 +252,7 @@ public class CardService {
     /**
      * 列表页批量填充关联，避免 N+1：
      * - 1 次查 card
-     * - 1 次查 card_note（IN）
+     * - 1 次查结构化义项树（IN）
      * - 1 次查 card_progress（IN）
      */
     private List<CardDTO> fillAssociationsBatch(Long userId, List<Card> cards) {
@@ -263,20 +260,19 @@ public class CardService {
 
         List<Long> cardIds = cards.stream().map(Card::getId).collect(Collectors.toList());
 
-        Map<Long, List<CardNoteDTO>> notesByCardId = new HashMap<>();
-        cardNoteRepository.findByCardIdIn(cardIds).forEach(n -> {
-            notesByCardId.computeIfAbsent(n.getCardId(), k -> new ArrayList<>()).add(CardNoteMapper.toDTO(n));
-        });
-
         Map<Long, CardProgressDTO> progressByCardId = new HashMap<>();
         cardProgressRepository.findByUserIdAndCardIdIn(userId, cardIds).forEach(p -> {
             progressByCardId.put(p.getCardId(), CardProgressMapper.toDTO(p));
         });
 
+        Map<Long, List<CardSenseDTO>> sensesByCard = cardStructuredContentService.loadSensesBatch(cardIds);
+        Map<Long, CardGlobalExtraDTO> globalByCard = cardStructuredContentService.loadGlobalBatch(cardIds);
+
         List<CardDTO> list = new ArrayList<>(cards.size());
         for (Card c : cards) {
             CardDTO dto = CardMapper.toDTO(c, false);
-            dto.setNotes(notesByCardId.getOrDefault(c.getId(), new ArrayList<>()));
+            dto.setSenses(sensesByCard.getOrDefault(c.getId(), new ArrayList<>()));
+            dto.setGlobalExtra(globalByCard.get(c.getId()));
             CardProgressDTO progress = progressByCardId.get(c.getId());
             if (progress != null) dto.setProgress(progress);
             list.add(dto);

@@ -4,7 +4,10 @@ import com.english.learn.common.PageResult;
 import com.english.learn.common.Result;
 import com.english.learn.dto.CardDTO;
 import com.english.learn.dto.CardRangeDTO;
+import com.english.learn.dto.structured.CardStructuredGenerateRequest;
+import com.english.learn.dto.structured.CardStructuredSaveRequest;
 import com.english.learn.service.CardService;
+import com.english.learn.service.CardStructuredContentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +24,7 @@ import java.util.List;
 public class CardController {
 
     private final CardService cardService;
+    private final CardStructuredContentService cardStructuredContentService;
 
     private static Long getUserId(@RequestHeader(value = "X-User-Id", required = false) Long userId) {
         if (userId == null) {
@@ -98,5 +102,27 @@ public class CardController {
             @RequestHeader(value = "X-User-Id", required = false) Long userId) {
         cardService.deleteById(id, getUserId(userId));
         return Result.success();
+    }
+
+    /** POST /api/card/{id}/structured/generate — 内置 JSON schema，AI 结构化释义并落库 */
+    @PostMapping("/{id}/structured/generate")
+    public Result<CardDTO> generateStructured(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @Valid @RequestBody CardStructuredGenerateRequest req) {
+        Long uid = getUserId(userId);
+        cardStructuredContentService.generateAndApply(id, uid, req);
+        return Result.success(cardService.getById(id, uid));
+    }
+
+    /** PUT /api/card/{id}/structured — 手动保存义项树（全量覆盖） */
+    @PutMapping("/{id}/structured")
+    public Result<CardDTO> saveStructured(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @Valid @RequestBody CardStructuredSaveRequest req) {
+        Long uid = getUserId(userId);
+        cardStructuredContentService.replaceStructure(id, uid, req);
+        return Result.success(cardService.getById(id, uid));
     }
 }

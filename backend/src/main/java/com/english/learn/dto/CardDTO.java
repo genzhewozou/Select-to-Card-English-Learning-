@@ -38,8 +38,10 @@ public class CardDTO {
     private Integer endOffset;
     private LocalDateTime gmtCreate;
     private LocalDateTime gmtModified;
-    /** 注释列表（响应时填充） */
-    private List<CardNoteDTO> notes;
+    /** 义项树（结构化释义，响应时填充） */
+    private List<CardSenseDTO> senses;
+    /** 卡片级扩展块（搭配 / 提示 / 高分例句） */
+    private CardGlobalExtraDTO globalExtra;
     /** 学习进度（响应时填充） */
     private CardProgressDTO progress;
 }

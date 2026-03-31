@@ -11,7 +11,11 @@ import org.springframework.web.client.RestTemplate;
 @Configuration
 public class AiConfig {
 
-    private static final int AI_REQUEST_TIMEOUT_MS = 15000;
+    /**
+     * AI 返回结构化内容会更长，15s 容易超时导致前端拿到空字符串。
+     * 与前端 30s timeout 配合，服务端给到更宽裕的读取时间。
+     */
+    private static final int AI_REQUEST_TIMEOUT_MS = 60000;
 
     @Bean(name = "aiRestTemplate")
     public RestTemplate aiRestTemplate() {

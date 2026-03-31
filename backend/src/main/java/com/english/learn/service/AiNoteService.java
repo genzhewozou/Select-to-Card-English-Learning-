@@ -28,12 +28,53 @@ public class AiNoteService {
     private final RestTemplate aiRestTemplate;
 
     public static final String DEFAULT_NOTE_PROMPT_TEMPLATE =
-            "Generate a vocabulary note for this word/phrase. Output exactly three parts in order: "
-                    + "(1) \"English definition\" — one short definition in English; "
-                    + "(2) \"中文释义\" — one concise Chinese explanation; "
-                    + "(3) \"Example(s)\" — 1–2 natural English sentences using the word/phrase, with optional Chinese in parentheses. "
-                    + "Use the labels above. Keep the whole note under 300 words. "
-                    + "Target: {{target}}. Context (optional): {{context}}";
+            "You are generating structured vocabulary learning content for a flashcard.\n"
+                    + "Return ONLY tagged blocks (no markdown code fences, no extra commentary). You MUST match tags exactly.\n"
+                    + "\n"
+                    + "IMPORTANT: If TARGET has multiple distinct meanings/usages (e.g. noun vs verb, different Chinese translations), you MUST output multiple [SENSE] blocks. One [SENSE] block = one meaning.\n"
+                    + "Inside each [SENSE] block, translationZh MUST be exactly ONE Chinese meaning (single line; NO bullets; NO multiple meanings).\n"
+                    + "Examples and synonyms inside a [SENSE] block must ONLY match that sense.\n"
+                    + "\n"
+                    + "[SENSE]\n"
+                    + "[TRANSLATION_ZH]\n"
+                    + "One-line Chinese meaning only.\n"
+                    + "[/TRANSLATION_ZH]\n"
+                    + "\n"
+                    + "[EXPLANATION_EN]\n"
+                    + "Write in English with these exact subheadings and emojis:\n"
+                    + "✅ Meaning\n"
+                    + "...\n"
+                    + "✅ Tone\n"
+                    + "...\n"
+                    + "[/EXPLANATION_EN]\n"
+                    + "\n"
+                    + "[EXAMPLES]\n"
+                    + "Provide 2-4 lines. Each line MUST match:\n"
+                    + "- <Category> | EN: <english sentence> | ZH: <chinese translation>\n"
+                    + "Category examples: Economic / Policy, Educational / Mental, Scientific / Physical, IELTS-style / Academic, etc.\n"
+                    + "[/EXAMPLES]\n"
+                    + "\n"
+                    + "[SYNONYMS]\n"
+                    + "Provide 3-6 synonym lines. Each line MUST match:\n"
+                    + "- <synonym phrase> -> <chinese meaning>\n"
+                    + "Only synonyms; NO separate example for synonyms.\n"
+                    + "[/SYNONYMS]\n"
+                    + "[/SENSE]\n"
+                    + "\n"
+                    + "[NATIVE_TIP]\n"
+                    + "Write a short native usage tip in English.\n"
+                    + "[/NATIVE_TIP]\n"
+                    + "\n"
+                    + "[HIGH_LEVEL_EN]\n"
+                    + "Write 1 high-level English sentence.\n"
+                    + "[/HIGH_LEVEL_EN]\n"
+                    + "\n"
+                    + "[HIGH_LEVEL_ZH]\n"
+                    + "Write the Chinese translation of the high-level sentence.\n"
+                    + "[/HIGH_LEVEL_ZH]\n"
+                    + "\n"
+                    + "Target: {{target}}.\n"
+                    + "Context (optional): {{context}}";
 
     private static final String DEFAULT_MODEL = "gpt-3.5-turbo";
     private static final String DEFAULT_BASE_URL = "https://api.openai.com/v1";
@@ -62,7 +103,8 @@ public class AiNoteService {
         String context = contextSentence != null ? contextSentence : "(none)";
         String userContent = buildNotePrompt(notePromptTemplate, selectedText.trim(), context.trim());
         String url = baseUrlNoTrailing + "/chat/completions";
-        return sendChat(url, apiKey, model, Collections.singletonList(new ChatMessage("user", userContent)), 500);
+        // 需要输出多块结构化内容，500 tokens 很容易截断导致缺块/缺同义词/缺中文
+        return sendChat(url, apiKey, model, Collections.singletonList(new ChatMessage("user", userContent)), 1600);
     }
 
     public Optional<String> chatWithConfig(String userMessage, String apiKey, String model, String baseUrl) {
@@ -99,9 +141,10 @@ public class AiNoteService {
     }
 
     private String buildNotePrompt(String template, String target, String context) {
-        String t = (template != null && !template.trim().isEmpty())
-                ? template.trim()
-                : DEFAULT_NOTE_PROMPT_TEMPLATE;
+        // 若用户自定义 prompt 不包含我们约定的块标签，则回退到内置模板，保证可解析性
+        String userTpl = template != null ? template.trim() : "";
+        boolean looksTagged = userTpl.contains("[TRANSLATION_ZH]") && userTpl.contains("[EXAMPLES]") && userTpl.contains("[SYNONYMS]");
+        String t = (!userTpl.isEmpty() && looksTagged) ? userTpl : DEFAULT_NOTE_PROMPT_TEMPLATE;
         if (t.contains("{{target}}") || t.contains("{{context}}")) {
             return t.replace("{{target}}", target).replace("{{context}}", context);
         }

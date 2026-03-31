@@ -13,7 +13,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 复习 REST 接口：今日待复习列表、提交复习结果。
@@ -39,7 +42,8 @@ public class ReviewController {
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestParam(value = "documentId", required = false) Long documentId) {
         Long uid = getUserId(userId);
-        List<Long> cardIds = cardProgressService.findDueCardIds(uid, documentId);
+        List<Long> cardIds = new ArrayList<>(cardProgressService.findDueCardIds(uid, documentId));
+        Collections.shuffle(cardIds, ThreadLocalRandom.current());
         List<CardDTO> cards = cardService.getByIdsInOrder(uid, cardIds);
         return Result.success(cards);
     }
@@ -57,7 +61,8 @@ public class ReviewController {
         int s = Math.max(1, Math.min(size, 200));
         int from = Math.min((p - 1) * s, allIds.size());
         int to = Math.min(from + s, allIds.size());
-        List<Long> pageIds = allIds.subList(from, to);
+        List<Long> pageIds = new ArrayList<>(allIds.subList(from, to));
+        Collections.shuffle(pageIds, ThreadLocalRandom.current());
         List<CardDTO> cards = cardService.getByIdsInOrder(uid, pageIds);
         return Result.success(PageResult.of(p, s, allIds.size(), cards));
     }

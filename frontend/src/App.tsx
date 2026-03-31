@@ -8,6 +8,7 @@ import CardList from './pages/CardList';
 import CardEdit from './pages/CardEdit';
 import Review from './pages/Review';
 import WeakCards from './pages/WeakCards';
+import Quiz from './pages/Quiz';
 import Settings from './pages/Settings';
 
 /**
@@ -30,6 +31,7 @@ function App() {
           <Route path="cards/:id/edit" element={<CardEdit />} />
           <Route path="review" element={<Review />} />
           <Route path="review/weak" element={<WeakCards />} />
+          <Route path="quiz" element={<Quiz />} />
           <Route path="settings" element={<Settings />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

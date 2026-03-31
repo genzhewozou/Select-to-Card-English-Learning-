@@ -36,14 +36,6 @@ export interface DocumentDTO {
   gmtModified?: string;
 }
 
-export interface CardNoteDTO {
-  id?: number;
-  cardId: number;
-  content: string;
-  gmtCreate?: string;
-  gmtModified?: string;
-}
-
 export interface CardProgressDTO {
   id?: number;
   userId?: number;
@@ -54,6 +46,79 @@ export interface CardProgressDTO {
   lastReviewAt?: string;
   gmtCreate?: string;
   gmtModified?: string;
+}
+
+export interface CardExampleDTO {
+  id?: number;
+  senseId?: number;
+  sortOrder?: number;
+  sentenceEn?: string;
+  sentenceZh?: string;
+  scenarioTag?: string;
+}
+
+export interface CardSynonymDTO {
+  id?: number;
+  senseId?: number;
+  sortOrder?: number;
+  lemma?: string;
+  noteZh?: string;
+}
+
+export interface CardSenseDTO {
+  id?: number;
+  cardId?: number;
+  sortOrder?: number;
+  label?: string;
+  translationZh?: string;
+  explanationEn?: string;
+  tone?: string;
+  examples?: CardExampleDTO[];
+  synonyms?: CardSynonymDTO[];
+}
+
+export interface CardGlobalExtraDTO {
+  id?: number;
+  cardId?: number;
+  collocations?: string[];
+  nativeTip?: string;
+  highLevelEn?: string;
+  highLevelZh?: string;
+}
+
+export interface CardStructuredExamplePayload {
+  order?: number;
+  en: string;
+  zh?: string;
+  tag?: string;
+}
+
+export interface CardStructuredSynonymPayload {
+  order?: number;
+  lemma: string;
+  noteZh?: string;
+}
+
+export interface CardStructuredSensePayload {
+  order: number;
+  label?: string;
+  translationZh?: string;
+  explanationEn?: string;
+  tone?: string;
+  examples: CardStructuredExamplePayload[];
+  synonyms: CardStructuredSynonymPayload[];
+}
+
+export interface CardStructuredGlobalPayload {
+  collocations?: string[];
+  nativeTip?: string;
+  highLevelEn?: string;
+  highLevelZh?: string;
+}
+
+export interface CardStructuredSaveRequest {
+  senses: CardStructuredSensePayload[];
+  globalExtra?: CardStructuredGlobalPayload;
 }
 
 export interface CardDTO {
@@ -80,8 +145,59 @@ export interface CardDTO {
   endOffset?: number;
   gmtCreate?: string;
   gmtModified?: string;
-  notes?: CardNoteDTO[];
+  senses?: CardSenseDTO[];
+  globalExtra?: CardGlobalExtraDTO;
   progress?: CardProgressDTO;
+}
+
+export interface QuizQuestionDTO {
+  itemId: number;
+  sequence: number;
+  type?: string;
+  prompt?: string;
+  sentenceEn?: string;
+  sentenceZh?: string;
+  options?: string[];
+}
+
+export interface QuizSessionStartResponse {
+  sessionId: number;
+  questions: QuizQuestionDTO[];
+}
+
+export interface QuizAnswerResponse {
+  correct: boolean;
+  verdict?: 'CORRECT' | 'PARTIAL' | 'WRONG';
+  score?: number;
+  feedback?: string;
+  expectedFront?: string;
+  expectedSentence?: string;
+  sentenceEn?: string;
+  sentenceZh?: string;
+  frontCorrect?: boolean;
+  sentenceVerdict?: 'CORRECT' | 'PARTIAL' | 'WRONG';
+  sentenceScore?: number;
+  frontFeedback?: string;
+  sentenceFeedback?: string;
+  sessionCompleted: boolean;
+}
+
+export interface QuizResultItemDTO {
+  itemId: number;
+  sequence: number;
+  sentenceEn?: string;
+  isCorrect?: boolean;
+  type?: string;
+  prompt?: string;
+  expected?: string;
+  userAnswer?: string;
+}
+
+export interface QuizResultResponse {
+  sessionId: number;
+  total: number;
+  correctCount: number;
+  items: QuizResultItemDTO[];
 }
 
 export interface LoginRequest {

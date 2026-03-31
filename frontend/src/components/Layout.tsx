@@ -17,6 +17,7 @@ export default function Layout() {
     path.startsWith('/cards') ? 'cards' :
     path.startsWith('/review/weak') ? 'weak' :
     path.startsWith('/review') ? 'review' :
+    path.startsWith('/quiz') ? 'quiz' :
     path.startsWith('/settings') ? 'settings' : 'documents'
   );
   useEffect(() => {
@@ -25,6 +26,7 @@ export default function Layout() {
       path.startsWith('/cards') ? 'cards' :
       path.startsWith('/review/weak') ? 'weak' :
       path.startsWith('/review') ? 'review' :
+      path.startsWith('/quiz') ? 'quiz' :
       path.startsWith('/settings') ? 'settings' : 'documents'
     );
   }, [path]);
@@ -40,6 +42,7 @@ export default function Layout() {
     { key: 'cards', icon: <UnorderedListOutlined />, label: <Link to="/cards">卡片管理</Link> },
     { key: 'review', icon: <FormOutlined />, label: <Link to="/review">学习复习</Link> },
     { key: 'weak', icon: <FormOutlined />, label: <Link to="/review/weak">错题本</Link> },
+    { key: 'quiz', icon: <FormOutlined />, label: <Link to="/quiz">文档测验</Link> },
     { key: 'settings', icon: <SettingOutlined />, label: <Link to="/settings">设置</Link> },
   ];
 

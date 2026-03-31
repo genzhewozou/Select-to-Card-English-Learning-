@@ -9,10 +9,11 @@
 ## ✨ 功能特性
 
 - **划词成卡**：在文档正文中选中文字即可弹出「生成学习卡片」，正面为选中内容，背面可手填或由 AI 生成
-- **AI 注释（可选）**：在「设置」中配置 API Key 后，可在文档页开启「AI 注释」，打开生成卡片弹窗时自动调用大模型生成英文释义、中文释义与例句（支持 OpenAI 及兼容接口）
+- **结构化释义（可选）**：编辑卡片时可一键调用 AI（内置 JSON schema）生成「义项-例句-同义词-扩展块」，并自动汇总到背面
 - **文档内高亮**：正文中已生成卡片的词句会高亮显示，点击可跳转编辑；卡片编辑/列表页支持「在文档中定位」
 - **艾宾浩斯复习**：「学习复习」页按下次复习时间展示今日待复习卡片，提交熟练度（1–5）后自动计算下次复习时间
 - **错题本**：熟练度 1–2 的卡片单独列表，支持「只复习错题」
+- **文档测验（Quiz）**：按文档随机抽取例句出题，作答结果会话入库，支持错题再练
 - **卡片筛选与搜索**：按文档、关键词（正面/背面）、熟练度、今日待复习筛选
 - **文档管理**：上传 Word(.doc/.docx)、TXT，列表与查看正文
 
@@ -186,14 +187,12 @@ english-learning-system/
 | PUT    | `/api/card/{id}` | 更新卡片 |
 | DELETE | `/api/card/{id}` | 删除卡片 |
 
-### 卡片注释
+### 结构化卡片内容
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST   | `/api/card/note` | 添加注释 |
-| GET    | `/api/card/note/list?cardId=` | 某卡片的注释列表 |
-| PUT    | `/api/card/note/{id}` | 更新注释 |
-| DELETE | `/api/card/note/{id}` | 删除注释 |
+| POST | `/api/card/{id}/structured/generate` | 调 AI 生成结构化释义并落库 |
+| PUT  | `/api/card/{id}/structured` | 手动保存结构化义项树（全量覆盖） |
 
 ### 复习
 
@@ -202,6 +201,17 @@ english-learning-system/
 | GET  | `/api/review/today` | 今日待复习卡片（next_review_at ≤ 当前时间 + 从未复习） |
 | GET  | `/api/review/weak` | 错题本（熟练度 1–2） |
 | POST | `/api/review/submit` | 提交复习（cardId, proficiencyLevel 1–5） |
+
+### 文档测验（Quiz）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/quiz/session` | 创建测验会话（按文档随机抽题） |
+| POST | `/api/quiz/session/{sessionId}/answer` | 提交单题答案 |
+| GET  | `/api/quiz/session/{sessionId}` | 获取会话题目（用于恢复进行中的测验） |
+| GET  | `/api/quiz/session/{sessionId}/result` | 查看会话结果 |
+| GET  | `/api/quiz/session/list` | 最近会话列表（用于回看历史） |
+| POST | `/api/quiz/session/{sessionId}/retry-wrong` | 用错题创建新会话 |
 
 ### 复习间隔计算规则（2026-03 更新）
 
@@ -243,11 +253,17 @@ english-learning-system/
 | `learn_user` | 用户 |
 | `learn_document` | 文档（含 content 纯文本） |
 | `learn_card` | 卡片（正面/背面、documentId、startOffset/endOffset 等） |
-| `learn_card_note` | 卡片注释 |
+| `learn_card_sense` | 卡片义项（一词多义） |
+| `learn_card_example` | 义项下例句（测验题源） |
+| `learn_card_synonym` | 义项下同义词（仅展示） |
+| `learn_card_global_extra` | 卡片扩展块（搭配、提示、高阶句） |
 | `learn_card_progress` | 学习进度（熟练度、复习次数、下次复习时间） |
+| `learn_quiz_session` | 测验会话 |
+| `learn_quiz_session_item` | 测验题项（作答记录） |
 
 - 下次复习时间由 `EbbinghausUtil.nextReviewAt(reviewCount, proficiencyLevel)` 按艾宾浩斯曲线计算。
 - 「今日待复习」使用 SQL 条件 `next_review_at <= NOW()`，与数据源时区（建议 `Asia/Shanghai`）一致。
+- 初始化 SQL 已同步到：`backend/src/main/resources/sql/init.sql`
 
 ---
 

@@ -1,6 +1,6 @@
 import request from '../utils/request';
 import type { PageResult, Result } from '../types/api';
-import type { CardDTO } from '../types/api';
+import type { CardDTO, CardStructuredSaveRequest } from '../types/api';
 
 /**
  * 卡片相关 API：创建、列表、详情、更新、删除。
@@ -64,4 +64,23 @@ export function updateCard(id: number, data: Partial<CardDTO>) {
 
 export function deleteCard(id: number) {
   return request.delete<Result<null>>(`/card/${id}`).then((r) => r.data.data);
+}
+
+export interface StructuredGenerateBody {
+  contextSentence?: string;
+  aiApiKey: string;
+  aiModel?: string;
+  aiBaseUrl?: string;
+}
+
+/** 内置 JSON schema，后端调 AI 并落库义项树 */
+export function generateStructuredCard(id: number, body: StructuredGenerateBody) {
+  return request
+    .post<Result<CardDTO>>(`/card/${id}/structured/generate`, body)
+    .then((r) => r.data.data);
+}
+
+/** 全量覆盖保存义项树 */
+export function saveStructuredCard(id: number, body: CardStructuredSaveRequest) {
+  return request.put<Result<CardDTO>>(`/card/${id}/structured`, body).then((r) => r.data.data);
 }
