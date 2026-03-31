@@ -34,8 +34,8 @@ export default function Register() {
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', padding: 24 }}>
-      <Card title="英语学习系统 - 注册">
+    <div className="auth-shell">
+      <Card title="创建学习账号" className="auth-card" extra={<span className="auth-card-sub">从第一篇文档开始</span>}>
         <Form name="register" onFinish={onFinish} autoComplete="off" layout="vertical">
           <Form.Item
             name="username"

@@ -4,6 +4,7 @@ import com.english.learn.common.PageResult;
 import com.english.learn.common.Result;
 import com.english.learn.dto.CardDTO;
 import com.english.learn.dto.CardRangeDTO;
+import com.english.learn.dto.CardSourceDTO;
 import com.english.learn.dto.structured.CardStructuredGenerateRequest;
 import com.english.learn.dto.structured.CardStructuredSaveRequest;
 import com.english.learn.service.CardService;
@@ -84,6 +85,14 @@ public class CardController {
             @PathVariable Long id,
             @RequestHeader(value = "X-User-Id", required = false) Long userId) {
         return Result.success(cardService.getById(id, getUserId(userId)));
+    }
+
+    /** GET /api/card/{id}/sources - 卡片来源列表（用于定位前先选择来源） */
+    @GetMapping("/{id}/sources")
+    public Result<List<CardSourceDTO>> listSources(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+        return Result.success(cardService.listSources(getUserId(userId), id));
     }
 
     /** PUT /api/card/{id} */

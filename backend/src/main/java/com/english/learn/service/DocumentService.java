@@ -5,6 +5,7 @@ import com.english.learn.dto.DocumentDownloadResult;
 import com.english.learn.dto.DocumentImageResult;
 import com.english.learn.entity.Document;
 import com.english.learn.mapper.DocumentMapper;
+import com.english.learn.repository.CardSourceRepository;
 import com.english.learn.repository.DocumentRepository;
 import com.english.learn.util.DocumentParseUtil;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final CardSourceRepository cardSourceRepository;
     private final DocumentFileStorage documentFileStorage;
 
     @Transactional(rollbackFor = Exception.class)
@@ -106,6 +108,7 @@ public class DocumentService {
             throw new IllegalArgumentException("无权限删除该文档");
         }
         String stored = doc.getStoredFilePath();
+        cardSourceRepository.deleteByUserIdAndDocumentId(userId, id);
         documentRepository.delete(doc);
         documentFileStorage.deleteIfExists(stored);
     }

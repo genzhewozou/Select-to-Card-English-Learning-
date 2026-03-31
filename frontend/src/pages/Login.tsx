@@ -27,8 +27,8 @@ export default function Login() {
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: '80px auto', padding: 24 }}>
-      <Card title="英语学习系统 - 登录">
+    <div className="auth-shell">
+      <Card title="欢迎回来" className="auth-card" extra={<span className="auth-card-sub">进入今日学习节奏</span>}>
         <Form name="login" onFinish={onFinish} autoComplete="off" layout="vertical">
           <Form.Item
             name="username"

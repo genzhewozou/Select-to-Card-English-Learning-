@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Card, Button, message, Slider, Space, Select, Dropdown } from 'antd';
+import { Card, Button, message, Slider, Space, Select, Dropdown, Switch } from 'antd';
 import type { MenuProps } from 'antd';
 import { SoundOutlined } from '@ant-design/icons';
 import { getTodayReviewPage, getWeakCardsPage, postponeReview, submitReview } from '../services/reviewService';
@@ -31,6 +31,7 @@ export default function Review() {
   const [submitting, setSubmitting] = useState(false);
   const [postponingDays, setPostponingDays] = useState<number | null>(null);
   const [showBack, setShowBack] = useState(false);
+  const [showNativeTip, setShowNativeTip] = useState(() => localStorage.getItem('reviewShowNativeTip') === '1');
   const { speak, stop, isSpeaking, isSupported } = useTTS();
 
   const handleSpeak = (text: string) => {
@@ -81,6 +82,23 @@ export default function Review() {
   }, [modeWeak, modeRelearn, selectedDocumentId]);
 
   const current = list[currentIndex];
+  const currentSpeakText = (() => {
+    if (!current) return '';
+    if (current.senses && current.senses.length > 0) {
+      const lines: string[] = [];
+      current.senses.forEach((s, i) => {
+        lines.push(`Sense ${i + 1}`);
+        if (s.translationZh) lines.push(s.translationZh);
+        if (s.explanationEn) lines.push(s.explanationEn);
+        (s.examples ?? []).forEach((ex) => {
+          if (ex.sentenceEn) lines.push(ex.sentenceEn);
+          if (ex.sentenceZh) lines.push(ex.sentenceZh);
+        });
+      });
+      if (lines.length > 0) return lines.join('. ');
+    }
+    return current.backContent ?? '';
+  })();
 
   const handleSubmitReview = async () => {
     if (!current?.id) return;
@@ -137,6 +155,10 @@ export default function Review() {
     { key: '2', label: '延后2天' },
     { key: '7', label: '延后7天' },
   ];
+
+  useEffect(() => {
+    localStorage.setItem('reviewShowNativeTip', showNativeTip ? '1' : '0');
+  }, [showNativeTip]);
 
   if (loading) {
     return <div style={{ padding: 24 }}>加载中...</div>;
@@ -211,34 +233,99 @@ export default function Review() {
           <>
             <p style={{ marginBottom: 8, color: '#666' }}>背面：</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-              {(current?.backContent?.trim()) && (
+              {currentSpeakText.trim() && (
                 <Button
                   type="default"
                   icon={<SoundOutlined />}
-                  onClick={() => handleSpeak(current?.backContent ?? '')}
+                  onClick={() => handleSpeak(currentSpeakText)}
                   size="middle"
                 >
                   {isSpeaking ? '停止' : '朗读'}
                 </Button>
               )}
+              <span style={{ color: '#666' }}>显示 Native Tip</span>
+              <Switch checked={showNativeTip} onChange={setShowNativeTip} />
             </div>
-            <div
-              style={{
-                background: '#fafafa',
-                border: '1px solid #f0f0f0',
-                borderRadius: 8,
-                padding: 16,
-                whiteSpace: 'pre-wrap',
-                lineHeight: 1.75,
-                fontSize: 14,
-                color: '#333',
-                maxHeight: 320,
-                overflow: 'auto',
-                marginBottom: 16,
-              }}
-            >
-              {current?.backContent?.trim() ? current.backContent : '（无）'}
-            </div>
+            {current?.senses && current.senses.length > 0 ? (
+              <div
+                style={{
+                  background: '#fafafa',
+                  border: '1px solid #f0f0f0',
+                  borderRadius: 8,
+                  padding: 16,
+                  lineHeight: 1.75,
+                  fontSize: 14,
+                  color: '#333',
+                  maxHeight: 420,
+                  overflow: 'auto',
+                  marginBottom: 16,
+                }}
+              >
+                {current.senses.map((sense, idx) => (
+                  <div key={sense.id ?? idx} style={{ marginBottom: idx === current.senses!.length - 1 ? 0 : 16 }}>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>释义 {idx + 1}</div>
+                    <div style={{ marginBottom: 4, color: '#555' }}>中文释义：</div>
+                    <div style={{ marginBottom: 8, whiteSpace: 'pre-wrap' }}>{sense.translationZh || '（无）'}</div>
+                    <div style={{ marginBottom: 4, color: '#555' }}>英文释义：</div>
+                    <div style={{ marginBottom: 8, whiteSpace: 'pre-wrap' }}>{sense.explanationEn || '（无）'}</div>
+                    <div style={{ marginBottom: 4, color: '#555' }}>例句：</div>
+                    {(sense.examples ?? []).length > 0 ? (
+                      <ul style={{ paddingLeft: 20, marginBottom: 8 }}>
+                        {(sense.examples ?? []).map((ex, exIdx) => (
+                          <li key={ex.id ?? exIdx} style={{ marginBottom: 6 }}>
+                            <div>{ex.sentenceEn || '（无）'}</div>
+                            {ex.sentenceZh ? <div style={{ color: '#666' }}>{ex.sentenceZh}</div> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div style={{ marginBottom: 8 }}>（无）</div>
+                    )}
+                    <div style={{ marginBottom: 4, color: '#555' }}>同义词：</div>
+                    {(sense.synonyms ?? []).length > 0 ? (
+                      <ul style={{ paddingLeft: 20, marginBottom: 8 }}>
+                        {(sense.synonyms ?? []).map((sy, syIdx) => (
+                          <li key={sy.id ?? syIdx}>
+                            {sy.lemma}
+                            {sy.noteZh ? ` - ${sy.noteZh}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div style={{ marginBottom: 8 }}>（无）</div>
+                    )}
+                  </div>
+                ))}
+                {current.globalExtra ? (
+                  <div style={{ borderTop: '1px dashed #ddd', paddingTop: 12 }}>
+                    {showNativeTip && current.globalExtra.nativeTip ? (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ marginBottom: 4, color: '#555' }}>Native Tip：</div>
+                        <div>{current.globalExtra.nativeTip}</div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div
+                style={{
+                  background: '#fafafa',
+                  border: '1px solid #f0f0f0',
+                  borderRadius: 8,
+                  padding: 16,
+                  whiteSpace: 'pre-wrap',
+                  lineHeight: 1.75,
+                  fontSize: 14,
+                  color: '#333',
+                  maxHeight: 320,
+                  overflow: 'auto',
+                  marginBottom: 16,
+                }}
+              >
+                {current?.backContent?.trim() ? current.backContent : '（无）'}
+              </div>
+            )}
             <p style={{ marginBottom: 8 }}>熟练度（1-5）：</p>
             <Slider
               min={1}

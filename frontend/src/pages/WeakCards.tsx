@@ -42,9 +42,27 @@ export default function WeakCards() {
     load();
   }, [filterDocumentId]);
 
+  const summaryOf = (record: CardDTO) => {
+    const senses = record.senses ?? [];
+    if (senses.length > 0) {
+      const first = senses[0];
+      const zh = first?.translationZh?.trim();
+      const en = first?.explanationEn?.trim();
+      const text = [zh, en].filter(Boolean).join(' | ');
+      return text || '（无摘要）';
+    }
+    return record.backContent?.trim() || '（无摘要）';
+  };
+
   const columns = [
     { title: '正面', dataIndex: 'frontContent', key: 'frontContent', ellipsis: true, width: 200 },
-    { title: '背面', dataIndex: 'backContent', key: 'backContent', ellipsis: true, width: 200 },
+    {
+      title: '释义摘要',
+      key: 'summary',
+      ellipsis: true,
+      width: 260,
+      render: (_: unknown, record: CardDTO) => summaryOf(record),
+    },
     {
       title: '熟练度',
       key: 'proficiency',

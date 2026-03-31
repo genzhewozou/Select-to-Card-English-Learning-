@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, Space, message, Modal, Tag, Input, Select, Checkbox, Dropdown } from 'antd';
+import { Table, Button, Space, message, Modal, Tag, Input, Select, Checkbox, Dropdown, List } from 'antd';
 import type { MenuProps } from 'antd';
-import { getCardPage, deleteCard } from '../services/cardService';
+import { getCardPage, deleteCard, getCardSources } from '../services/cardService';
 import { postponeReview, postponeReviewByDocument } from '../services/reviewService';
 import { getDocumentList } from '../services/documentService';
-import type { CardDTO } from '../types/api';
+import type { CardDTO, CardSourceDTO } from '../types/api';
 import type { DocumentDTO } from '../types/api';
 
 /**
@@ -25,6 +25,10 @@ export default function CardList() {
   const [total, setTotal] = useState(0);
   const [postponeLoadingKey, setPostponeLoadingKey] = useState<string>('');
   const [documentPostponeLoading, setDocumentPostponeLoading] = useState(false);
+  const [sourceModalOpen, setSourceModalOpen] = useState(false);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [currentSourceCard, setCurrentSourceCard] = useState<CardDTO | null>(null);
+  const [sources, setSources] = useState<CardSourceDTO[]>([]);
 
   const load = async (opts?: { keyword?: string; page?: number; size?: number }) => {
     setLoading(true);
@@ -108,9 +112,51 @@ export default function CardList() {
     }
   };
 
+  const handleLocate = async (record: CardDTO) => {
+    if (!record.id) return;
+    setCurrentSourceCard(record);
+    setSourceModalOpen(true);
+    setSourceLoading(true);
+    try {
+      const rows = await getCardSources(record.id);
+      setSources(rows ?? []);
+      if (!rows || rows.length === 0) {
+        message.info('该卡片暂无文档来源');
+      } else if (rows.length === 1) {
+        const one = rows[0];
+        if (one.documentId != null) {
+          setSourceModalOpen(false);
+          navigate(`/documents/${one.documentId}#card-${record.id}`);
+        }
+      }
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '加载来源失败');
+    } finally {
+      setSourceLoading(false);
+    }
+  };
+
+  const summaryOf = (record: CardDTO) => {
+    const senses = record.senses ?? [];
+    if (senses.length > 0) {
+      const first = senses[0];
+      const zh = first?.translationZh?.trim();
+      const en = first?.explanationEn?.trim();
+      const text = [zh, en].filter(Boolean).join(' | ');
+      return text || '（无摘要）';
+    }
+    return record.backContent?.trim() || '（无摘要）';
+  };
+
   const columns = [
     { title: '正面', dataIndex: 'frontContent', key: 'frontContent', ellipsis: true, width: 200 },
-    { title: '背面', dataIndex: 'backContent', key: 'backContent', ellipsis: true, width: 200 },
+    {
+      title: '释义摘要',
+      key: 'summary',
+      ellipsis: true,
+      width: 260,
+      render: (_: unknown, record: CardDTO) => summaryOf(record),
+    },
     {
       title: '熟练度',
       key: 'proficiency',
@@ -140,11 +186,9 @@ export default function CardList() {
           <Button type="link" onClick={() => navigate(`/cards/${record.id}/edit`)}>
             编辑
           </Button>
-          {record.documentId != null && (
-            <Button type="link" onClick={() => navigate(`/documents/${record.documentId}#card-${record.id}`)}>
-              定位
-            </Button>
-          )}
+          <Button type="link" onClick={() => handleLocate(record)}>
+            定位
+          </Button>
           <Button type="link" danger onClick={() => handleDelete(record)}>
             删除
           </Button>
@@ -185,7 +229,7 @@ export default function CardList() {
           options={[{ value: null, label: '全部文档' }, ...documents.filter((d) => d.id != null).map((d) => ({ value: d.id!, label: d.fileName }))]}
         />
         <Input.Search
-          placeholder="搜索正面/背面"
+          placeholder="搜索正面/释义/例句/同义词"
           allowClear
           style={{ width: 200 }}
           value={filterKeyword}
@@ -242,6 +286,41 @@ export default function CardList() {
           onChange: (p, s) => load({ page: p, size: s }),
         }}
       />
+      <Modal
+        title={`选择来源定位${currentSourceCard?.frontContent ? `：${currentSourceCard.frontContent}` : ''}`}
+        open={sourceModalOpen}
+        onCancel={() => setSourceModalOpen(false)}
+        footer={null}
+      >
+        <List
+          loading={sourceLoading}
+          dataSource={sources}
+          locale={{ emptyText: '该卡片暂无文档来源' }}
+          renderItem={(s) => (
+            <List.Item
+              actions={[
+                <Button
+                  key="go"
+                  type="link"
+                  disabled={s.documentId == null}
+                  onClick={() => {
+                    if (s.documentId == null) return;
+                    setSourceModalOpen(false);
+                    navigate(`/documents/${s.documentId}#card-${currentSourceCard?.id}`);
+                  }}
+                >
+                  跳转
+                </Button>,
+              ]}
+            >
+              <List.Item.Meta
+                title={s.documentName || `文档 #${s.documentId}`}
+                description={`偏移: ${s.startOffset ?? '-'} ~ ${s.endOffset ?? '-'}`}
+              />
+            </List.Item>
+          )}
+        />
+      </Modal>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import request from '../utils/request';
 import type { PageResult, Result } from '../types/api';
-import type { CardDTO, CardStructuredSaveRequest } from '../types/api';
+import type { CardDTO, CardSourceDTO, CardStructuredSaveRequest } from '../types/api';
 
 /**
  * 卡片相关 API：创建、列表、详情、更新、删除。
@@ -56,6 +56,10 @@ export function getCardRanges(documentId: number) {
 
 export function getCard(id: number) {
   return request.get<Result<CardDTO>>(`/card/${id}`).then((r) => r.data.data);
+}
+
+export function getCardSources(id: number) {
+  return request.get<Result<CardSourceDTO[]>>(`/card/${id}/sources`).then((r) => r.data.data);
 }
 
 export function updateCard(id: number, data: Partial<CardDTO>) {

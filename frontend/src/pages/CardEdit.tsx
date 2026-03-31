@@ -58,6 +58,21 @@ function cardToStructuredSave(card: CardDTO): CardStructuredSaveRequest {
   return { senses, globalExtra };
 }
 
+function buildBackSummary(card?: CardDTO | null) {
+  const senses = card?.senses ?? [];
+  if (senses.length === 0) return '';
+  return senses
+    .map((s, idx) => {
+      const zh = (s.translationZh ?? '').trim();
+      const en = (s.explanationEn ?? '').trim();
+      const lines = [`【释义 ${idx + 1}】`];
+      if (zh) lines.push(`ZH: ${zh}`);
+      if (en) lines.push(`EN: ${en}`);
+      return lines.join('\n');
+    })
+    .join('\n\n');
+}
+
 /**
  * 卡片编辑：正面、背面；义项 / 例句 / 同义词结构化编辑。
  */
@@ -96,7 +111,7 @@ export default function CardEdit() {
       .then((data) => {
         form.setFieldsValue({
           frontContent: data.frontContent,
-          backContent: data.backContent,
+          backContent: buildBackSummary(data),
         });
         setDocumentId(data.documentId ?? null);
         setStructured(
@@ -115,14 +130,12 @@ export default function CardEdit() {
       if (isEdit && id) {
         await updateCard(Number(id), {
           frontContent: values.frontContent,
-          backContent: values.backContent,
         });
         message.success('保存成功');
       } else {
         await createCard({
           userId: Number(userId),
           frontContent: values.frontContent,
-          backContent: values.backContent,
         });
         message.success('创建成功');
       }
@@ -234,7 +247,8 @@ export default function CardEdit() {
     setStructuring(true);
     try {
       const card = await saveStructuredCard(Number(id), structured);
-      form.setFieldsValue({ backContent: card.backContent });
+      const summary = buildBackSummary(card);
+      form.setFieldsValue({ backContent: summary });
       message.success('结构化内容已保存，背面已同步汇总');
     } catch (e) {
       message.error(e instanceof Error ? e.message : '保存失败');
@@ -257,7 +271,7 @@ export default function CardEdit() {
           </Button>
         )}
       </div>
-      <Card title={isEdit ? '编辑卡片' : '新建卡片'} bodyStyle={{ paddingBottom: 8 }}>
+      <Card title={isEdit ? '编辑卡片' : '新建卡片'} bodyStyle={{ paddingBottom: 8 }} className="sense-editor-shell">
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <Form.Item
             name="frontContent"
@@ -308,7 +322,8 @@ export default function CardEdit() {
                   <Form.Item name="backContent" style={{ marginBottom: 0 }}>
                     <Input.TextArea
                       autoSize={{ minRows: 6, maxRows: 16 }}
-                      placeholder="创建卡片时开启 AI 注释，会自动生成并解析为下方释义；保存释义后背面会被汇总同步"
+                      readOnly
+                      placeholder="背面摘要由结构化释义自动生成（仅中英释义）"
                     />
                   </Form.Item>
                 ),
@@ -318,7 +333,7 @@ export default function CardEdit() {
           />
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={submitting}>
-              {isEdit ? '保存卡片（正面/背面）' : '创建'}
+              {isEdit ? '保存卡片（正面）' : '创建'}
             </Button>
           </Form.Item>
         </Form>
@@ -328,13 +343,14 @@ export default function CardEdit() {
         <Collapse
           defaultActiveKey={['structured']}
           style={{ marginTop: 16 }}
+          className="sense-editor-collapse"
           items={[
             {
               key: 'structured',
               label: '释义内容（可折叠）',
               children: (
-                <Card bordered={false} bodyStyle={{ padding: 0 }}>
-                  <p style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>
+                <Card bordered={false} bodyStyle={{ padding: 0 }} className="sense-editor-panel">
+                  <p style={{ color: '#6a7895', fontSize: 12, marginBottom: 12 }}>
                     「释义 1、释义 2…」表示同一单词/短语的不同义项；每个义项只放一种中文概括，以及本义项专用的英文释义、例句、同义词。文档测验里的考词条 / 选英文句 / 同义词会按这里的拆分来出题。
                   </p>
                   <Space wrap style={{ marginBottom: 12 }}>
@@ -344,16 +360,17 @@ export default function CardEdit() {
                     <Button icon={<PlusOutlined />} onClick={addSense}>
                       添加释义
                     </Button>
-                    <span style={{ color: '#888', fontSize: 12 }}>
+                    <span style={{ color: '#6a7895', fontSize: 12 }}>
                       提示：创建卡片时开启 AI 注释会自动填充；这里用于手动调整与保存
                     </span>
                   </Space>
                   <Collapse
+                    className="sense-list-collapse"
                     items={(structured.senses ?? []).map((s, si) => ({
                       key: String(si),
                       label: (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                          <span>{`释义 ${si + 1}`}</span>
+                        <div className="sense-header-row">
+                          <span className="sense-header-title">{`释义 ${si + 1}${s.translationZh?.trim() ? `：${s.translationZh.trim()}` : ''}`}</span>
                           <Button
                             size="small"
                             danger
@@ -370,29 +387,24 @@ export default function CardEdit() {
                         </div>
                       ),
                       children: (
-                        <div style={{ paddingTop: 4 }}>
+                        <div className="sense-content-wrap">
                           <Space direction="vertical" style={{ width: '100%' }} size="small">
-                            <Input.TextArea
-                              rows={2}
-                              value={s.translationZh}
-                              onChange={(e) => updateSense(si, { translationZh: e.target.value })}
-                              placeholder="本义项的中文释义（建议单行一种意思；多种意思请用「添加释义」拆成多条）"
-                            />
                             <Input.TextArea
                               rows={3}
                               value={s.explanationEn}
                               onChange={(e) => updateSense(si, { explanationEn: e.target.value })}
                               placeholder="英文释义（可包含 ✅ Meaning / ✅ Tone）"
+                              className="sense-def-input"
                             />
                           </Space>
-                          <Divider orientation="left" plain style={{ margin: '12px 0 8px' }}>
-                            例句
+                          <Divider orientation="left" plain style={{ margin: '12px 0 8px' }} className="sense-divider">
+                            例句 Examples
                           </Divider>
-                          <Button size="small" onClick={() => addExample(si)} style={{ marginBottom: 8 }}>
+                          <Button size="small" onClick={() => addExample(si)} style={{ marginBottom: 8 }} className="sense-mini-btn">
                             添加例句
                           </Button>
                           {(s.examples ?? []).map((ex, ei) => (
-                            <Space key={ei} direction="vertical" style={{ width: '100%', marginBottom: 8 }}>
+                            <Space key={ei} direction="vertical" style={{ width: '100%', marginBottom: 10 }} className="sense-example-item">
                               <Space wrap>
                                 <Input
                                   style={{ minWidth: 320 }}
@@ -414,28 +426,29 @@ export default function CardEdit() {
                               />
                             </Space>
                           ))}
-                          <Divider orientation="left" plain style={{ margin: '12px 0 8px' }}>
-                            同义词（无例句）
+                          <Divider orientation="left" plain style={{ margin: '12px 0 8px' }} className="sense-divider">
+                            同义词 Synonyms（无例句）
                           </Divider>
-                          <Button size="small" onClick={() => addSynonym(si)} style={{ marginBottom: 8 }}>
+                          <Button size="small" onClick={() => addSynonym(si)} style={{ marginBottom: 8 }} className="sense-mini-btn">
                             添加同义词
                           </Button>
-                          {(s.synonyms ?? []).map((sy, yi) => (
-                            <Space key={yi} style={{ marginBottom: 8 }} wrap>
-                              <Input
-                                style={{ minWidth: 320 }}
-                                value={sy.lemma}
-                                onChange={(e) => updateSynonym(si, yi, { lemma: e.target.value })}
-                                placeholder="英文同义表达 *"
-                              />
-                              <Button
-                                size="small"
-                                danger
-                                icon={<DeleteOutlined />}
-                                onClick={() => removeSynonym(si, yi)}
-                              />
-                            </Space>
-                          ))}
+                          <div className="sense-synonym-grid">
+                            {(s.synonyms ?? []).map((sy, yi) => (
+                              <div key={yi} className="sense-synonym-item">
+                                <Input
+                                  value={sy.lemma}
+                                  onChange={(e) => updateSynonym(si, yi, { lemma: e.target.value })}
+                                  placeholder="英文同义表达 *"
+                                />
+                                <Button
+                                  size="small"
+                                  danger
+                                  icon={<DeleteOutlined />}
+                                  onClick={() => removeSynonym(si, yi)}
+                                />
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ),
                     }))}

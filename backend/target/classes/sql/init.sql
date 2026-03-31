@@ -66,6 +66,23 @@ CREATE TABLE IF NOT EXISTS learn_card_global_extra (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 5) 文档测验会话
+-- 4.5) 卡片来源关联（card 不再强依赖 document_id）
+CREATE TABLE IF NOT EXISTS learn_card_source (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  card_id BIGINT NOT NULL,
+  document_id BIGINT NOT NULL,
+  start_offset INT NULL,
+  end_offset INT NULL,
+  context_sentence TEXT NULL,
+  gmt_create DATETIME NOT NULL,
+  gmt_modified DATETIME NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_card_source_user_doc (user_id, document_id),
+  KEY idx_card_source_card_id (card_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 5) 文档测验会话
 CREATE TABLE IF NOT EXISTS learn_quiz_session (
   id BIGINT NOT NULL AUTO_INCREMENT,
   user_id BIGINT NOT NULL,

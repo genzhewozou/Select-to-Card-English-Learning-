@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Button, Card, message, Modal, Input, Switch, Pagination } from 'antd';
 import { getDocument, downloadDocumentOriginal } from '../services/documentService';
-import { createCard, getCardRanges } from '../services/cardService';
+import { createCard, getCard, getCardRanges } from '../services/cardService';
 import { generateNote } from '../services/aiService';
 import { getAiConfig, getDocAiNoteEnabled, setDocAiNoteEnabled } from '../utils/aiConfigStorage';
 import type { CardDTO, DocumentDTO } from '../types/api';
@@ -26,7 +26,7 @@ export default function DocumentView() {
   const [loading, setLoading] = useState(true);
   const [selectedText, setSelectedText] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [backContent, setBackContent] = useState('');
+  const [noteDraft, setNoteDraft] = useState('');
   const [noteLoading, setNoteLoading] = useState(false);
   const [aiNoteEnabled, setAiNoteEnabled] = useState(() => getDocAiNoteEnabled());
   const [selectionPopupEnabled, setSelectionPopupEnabled] = useState(() => {
@@ -37,6 +37,8 @@ export default function DocumentView() {
   const [selectedOffsets, setSelectedOffsets] = useState<{ start: number; end: number } | null>(null);
   const [docCards, setDocCards] = useState<CardRangeDTO[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [previewCard, setPreviewCard] = useState<CardDTO | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const docId = id ? Number(id) : 0;
 
@@ -170,7 +172,7 @@ export default function DocumentView() {
     const text = selection?.toString().trim();
     if (text && doc?.content) {
       setSelectedText(text);
-      setBackContent('');
+      setNoteDraft('');
       setSelectedOffsets(getSelectionOffsets(text));
       setModalOpen(true);
     }
@@ -191,7 +193,7 @@ export default function DocumentView() {
       aiBaseUrl: config.baseUrl?.trim() || undefined,
       aiNotePrompt: config.notePrompt?.trim() || undefined,
     })
-      .then((content) => setBackContent(content || ''))
+      .then((content) => setNoteDraft(content || ''))
       .catch(() => message.error('AI 释义生成失败'))
       .finally(() => setNoteLoading(false));
   }, [modalOpen, aiNoteEnabled, selectedText]);
@@ -210,13 +212,12 @@ export default function DocumentView() {
         userId: Number(userId),
         documentId: docId,
         frontContent: selectedText,
-        backContent: backContent || undefined,
         startOffset: selectedOffsets?.start,
         endOffset: selectedOffsets?.end,
       };
-      if (aiNoteEnabled && backContent.trim()) {
-        payload.aiNoteContent = backContent.trim();
-      } else if (aiNoteEnabled && !backContent.trim()) {
+      if (noteDraft.trim()) {
+        payload.aiNoteContent = noteDraft.trim();
+      } else if (aiNoteEnabled && !noteDraft.trim()) {
         payload.useAiNote = true;
         payload.aiApiKey = config.apiKey?.trim() ?? '';
         payload.aiModel = config.model?.trim() || undefined;
@@ -307,15 +308,35 @@ export default function DocumentView() {
                       id={`card-${seg.cardId}`}
                       role="button"
                       tabIndex={0}
-                      onClick={(e) => { e.preventDefault(); navigate(`/cards/${seg.cardId}/edit`); }}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/cards/${seg.cardId}/edit`); } }}
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        try {
+                          const card = await getCard(seg.cardId);
+                          setPreviewCard(card);
+                          setPreviewOpen(true);
+                        } catch (err) {
+                          message.error(err instanceof Error ? err.message : '加载卡片失败');
+                        }
+                      }}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          try {
+                            const card = await getCard(seg.cardId);
+                            setPreviewCard(card);
+                            setPreviewOpen(true);
+                          } catch (err) {
+                            message.error(err instanceof Error ? err.message : '加载卡片失败');
+                          }
+                        }
+                      }}
                       style={{
                         backgroundColor: 'rgba(24, 144, 255, 0.22)',
                         cursor: 'pointer',
                         borderRadius: 3,
                         padding: '0 2px',
                       }}
-                      title="点击编辑卡片"
+                      title="点击查看卡片背面"
                     >
                       {seg.content.replace(/\[图片]/g, '')}
                     </span>
@@ -359,17 +380,54 @@ export default function DocumentView() {
       >
         <p><strong>正面（选中的内容）：</strong></p>
         <p style={{ background: '#f5f5f5', padding: 8, borderRadius: 4 }}>{selectedText}</p>
-        <p style={{ marginTop: 12 }}><strong>背面（释义/例句，选填）：</strong></p>
+        <p style={{ marginTop: 12 }}><strong>结构化注释草稿（选填）：</strong></p>
         {noteLoading ? (
           <p style={{ color: '#666', marginBottom: 8 }}>正在生成释义与例句…</p>
         ) : null}
         <Input.TextArea
           rows={6}
-          value={backContent}
-          onChange={(e) => setBackContent(e.target.value)}
-          placeholder={aiNoteEnabled ? '打开弹窗时自动生成，可直接修改' : '可填写释义、例句等'}
+          value={noteDraft}
+          onChange={(e) => setNoteDraft(e.target.value)}
+          placeholder={aiNoteEnabled ? '打开弹窗时自动生成，可直接修改；保存后将解析到释义/例句/同义词表' : '可填写注释草稿，保存后会尝试结构化解析'}
           disabled={noteLoading}
         />
+      </Modal>
+      <Modal
+        title={`卡片预览${previewCard?.frontContent ? `：${previewCard.frontContent}` : ''}`}
+        open={previewOpen}
+        onCancel={() => setPreviewOpen(false)}
+        footer={[
+          <Button key="edit" type="link" onClick={() => previewCard?.id && navigate(`/cards/${previewCard.id}/edit`)}>
+            去编辑
+          </Button>,
+          <Button key="close" type="primary" onClick={() => setPreviewOpen(false)}>
+            关闭
+          </Button>,
+        ]}
+      >
+        {previewCard?.senses && previewCard.senses.length > 0 ? (
+          <div style={{ maxHeight: 420, overflow: 'auto' }}>
+            {previewCard.senses.map((s, idx) => (
+              <div key={s.id ?? idx} style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 700 }}>释义 {idx + 1}</div>
+                {s.translationZh ? <div style={{ marginTop: 4, color: '#555' }}>{s.translationZh}</div> : null}
+                {s.explanationEn ? <div style={{ marginTop: 4 }}>{s.explanationEn}</div> : null}
+                {(s.examples ?? []).length > 0 ? (
+                  <ul style={{ paddingLeft: 18, marginTop: 6 }}>
+                    {(s.examples ?? []).slice(0, 2).map((ex, exIdx) => (
+                      <li key={ex.id ?? exIdx}>
+                        {ex.sentenceEn}
+                        {ex.sentenceZh ? <div style={{ color: '#666' }}>{ex.sentenceZh}</div> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ whiteSpace: 'pre-wrap' }}>{previewCard?.backContent?.trim() || '（无背面内容）'}</div>
+        )}
       </Modal>
     </div>
   );

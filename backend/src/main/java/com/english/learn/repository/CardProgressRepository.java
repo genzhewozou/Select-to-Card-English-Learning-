@@ -46,19 +46,20 @@ public interface CardProgressRepository extends JpaRepository<CardProgress, Long
     /** 为文档下缺失进度记录的卡片批量补齐空进度（避免逐条 save）。 */
     @Modifying
     @Query(value = "INSERT INTO learn_card_progress (user_id, card_id, review_count, next_review_at, gmt_create, gmt_modified) " +
-            "SELECT c.user_id, c.id, 0, NOW(), NOW(), NOW() " +
-            "FROM learn_card c " +
-            "LEFT JOIN learn_card_progress p ON p.user_id = c.user_id AND p.card_id = c.id " +
-            "WHERE c.user_id = :userId AND c.document_id = :documentId AND p.id IS NULL",
+            "SELECT t.user_id, t.card_id, 0, NOW(), NOW(), NOW() " +
+            "FROM (SELECT DISTINCT user_id, card_id FROM learn_card_source WHERE user_id = :userId AND document_id = :documentId) t " +
+            "LEFT JOIN learn_card_progress p ON p.user_id = t.user_id AND p.card_id = t.card_id " +
+            "WHERE p.id IS NULL",
             nativeQuery = true)
     int insertMissingProgressByDocument(@Param("userId") Long userId, @Param("documentId") Long documentId);
 
     /** 批量更新文档下全部卡片的 next_review_at。 */
     @Modifying
     @Query(value = "UPDATE learn_card_progress p " +
-            "JOIN learn_card c ON c.id = p.card_id AND c.user_id = p.user_id " +
+            "JOIN (SELECT DISTINCT user_id, card_id FROM learn_card_source WHERE user_id = :userId AND document_id = :documentId) t " +
+            "ON t.user_id = p.user_id AND t.card_id = p.card_id " +
             "SET p.next_review_at = :nextReviewAt, p.gmt_modified = NOW() " +
-            "WHERE p.user_id = :userId AND c.document_id = :documentId",
+            "WHERE p.user_id = :userId",
             nativeQuery = true)
     int bulkUpdateNextReviewAtByDocument(@Param("userId") Long userId,
                                          @Param("documentId") Long documentId,

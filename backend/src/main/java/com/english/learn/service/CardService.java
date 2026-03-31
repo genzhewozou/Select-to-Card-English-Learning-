@@ -5,12 +5,19 @@ import com.english.learn.dto.CardGlobalExtraDTO;
 import com.english.learn.dto.CardProgressDTO;
 import com.english.learn.dto.CardRangeDTO;
 import com.english.learn.dto.CardSenseDTO;
+import com.english.learn.dto.CardExampleDTO;
+import com.english.learn.dto.CardSynonymDTO;
+import com.english.learn.dto.CardSourceDTO;
 import com.english.learn.entity.Card;
+import com.english.learn.entity.CardSource;
 import com.english.learn.entity.CardProgress;
+import com.english.learn.entity.Document;
 import com.english.learn.mapper.CardMapper;
 import com.english.learn.mapper.CardProgressMapper;
 import com.english.learn.repository.CardRepository;
+import com.english.learn.repository.CardSourceRepository;
 import com.english.learn.repository.CardProgressRepository;
+import com.english.learn.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -22,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,18 +53,28 @@ public class CardService {
     }
 
     private final CardRepository cardRepository;
+    private final CardSourceRepository cardSourceRepository;
     private final CardProgressRepository cardProgressRepository;
     private final CardProgressService cardProgressService;
     private final AiNoteService aiNoteService;
     private final CardStructuredContentService cardStructuredContentService;
+    private final DocumentRepository documentRepository;
 
     @Transactional(rollbackFor = Exception.class)
     public CardDTO create(CardDTO dto) {
-        Card entity = CardMapper.toEntity(dto);
-        if (entity.getBackContent() != null) {
-            entity.setBackContent(normalizeEmptyLines(entity.getBackContent()));
+        Card existing = cardRepository.findFirstByUserIdAndFrontContentNormalized(dto.getUserId(), dto.getFrontContent());
+        if (existing != null) {
+            linkSourceIfPresent(existing.getId(), dto);
+            touchForReview(dto.getUserId(), existing.getId());
+            return fillAssociations(CardMapper.toDTO(existing, false), existing);
         }
+
+        Card entity = CardMapper.toEntity(dto);
+        // 逻辑废弃 backContent：创建时先不信任/不落主数据，后续由结构化内容回写摘要。
+        entity.setBackContent(null);
+        entity.setDocumentId(null);
         entity = cardRepository.save(entity);
+        linkSourceIfPresent(entity.getId(), dto);
         // 新卡片立即进入「今日待复习」：创建一条进度记录，下次复习时间设为当前时间
         CardProgress progress = new CardProgress();
         progress.setUserId(entity.getUserId());
@@ -69,6 +87,9 @@ public class CardService {
         String noteText = null;
         if (dto.getAiNoteContent() != null && !dto.getAiNoteContent().trim().isEmpty()) {
             noteText = normalizeEmptyLines(dto.getAiNoteContent());
+        } else if (dto.getBackContent() != null && !dto.getBackContent().trim().isEmpty()) {
+            // 兼容旧入口：将 backContent 作为注释文本尝试结构化，后续由结构化回写摘要背面。
+            noteText = normalizeEmptyLines(dto.getBackContent());
         } else {
             boolean useAi = Boolean.TRUE.equals(dto.getUseAiNote());
             boolean hasKey = dto.getAiApiKey() != null && !dto.getAiApiKey().trim().isEmpty();
@@ -80,15 +101,18 @@ public class CardService {
             }
         }
         if (noteText != null && !noteText.trim().isEmpty()) {
-            // 若前端未填 backContent，则用 AI 内容补齐；随后尝试解析并覆盖为结构化汇总背面。
-            if (entity.getBackContent() == null || entity.getBackContent().trim().isEmpty()) {
-                entity.setBackContent(noteText);
-                entity = cardRepository.save(entity);
-            }
             try {
-                cardStructuredContentService.tryApplyFromNoteText(entity.getId(), entity.getUserId(), noteText);
+                boolean parsed = cardStructuredContentService.tryApplyFromNoteText(entity.getId(), entity.getUserId(), noteText);
+                if (!parsed) {
+                    // 兼容兜底：无法结构化时暂存文本背面，等待后续人工整理。
+                    entity.setBackContent(normalizeEmptyLines(noteText));
+                    entity = cardRepository.save(entity);
+                }
             } catch (Exception e) {
                 log.warn("Parse AI note to structured failed for card {}: {}", entity.getId(), e.getMessage());
+                // 兼容兜底：解析失败时临时回落文本背面，避免用户输入丢失。
+                entity.setBackContent(normalizeEmptyLines(noteText));
+                entity = cardRepository.save(entity);
             }
         }
         return fillAssociations(CardMapper.toDTO(entity, false), entity);
@@ -115,10 +139,7 @@ public class CardService {
                 : listByUserId(userId);
         if (keyword != null && !keyword.trim().isEmpty()) {
             String k = keyword.trim().toLowerCase();
-            list = list.stream().filter(c ->
-                    (c.getFrontContent() != null && c.getFrontContent().toLowerCase().contains(k))
-                            || (c.getBackContent() != null && c.getBackContent().toLowerCase().contains(k)))
-                    .collect(Collectors.toList());
+            list = list.stream().filter(c -> keywordHit(c, k)).collect(Collectors.toList());
         }
         if (proficiencyMax != null) {
             Set<Long> weakIds = cardProgressService.findCardIdsByProficiencyMax(userId, proficiencyMax).stream()
@@ -192,6 +213,33 @@ public class CardService {
         }).collect(Collectors.toList());
     }
 
+    public List<CardSourceDTO> listSources(Long userId, Long cardId) {
+        Card card = cardRepository.findById(cardId).orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
+        if (!card.getUserId().equals(userId)) {
+            throw new IllegalArgumentException("无权限查看该卡片来源");
+        }
+        List<CardSource> sources = cardSourceRepository.findByUserIdAndCardIdIn(userId, java.util.Collections.singleton(cardId));
+        if (sources == null || sources.isEmpty()) {
+            return new ArrayList<>();
+        }
+        Map<Long, String> docNameById = documentRepository.findByUserIdOrderByGmtCreateDesc(userId).stream()
+                .collect(Collectors.toMap(Document::getId, Document::getFileName, (a, b) -> a));
+        sources.sort(Comparator.comparing(CardSource::getGmtCreate, Comparator.nullsLast(LocalDateTime::compareTo)).reversed());
+        List<CardSourceDTO> out = new ArrayList<>(sources.size());
+        for (CardSource s : sources) {
+            CardSourceDTO dto = new CardSourceDTO();
+            dto.setSourceId(s.getId());
+            dto.setCardId(s.getCardId());
+            dto.setDocumentId(s.getDocumentId());
+            dto.setDocumentName(docNameById.getOrDefault(s.getDocumentId(), "文档#" + s.getDocumentId()));
+            dto.setStartOffset(s.getStartOffset());
+            dto.setEndOffset(s.getEndOffset());
+            dto.setGmtCreate(s.getGmtCreate());
+            out.add(dto);
+        }
+        return out;
+    }
+
     /** 批量获取卡片详情（含 notes/progress），并按传入 id 顺序返回，用于复习页避免 N+1。 */
     public List<CardDTO> getByIdsInOrder(Long userId, List<Long> cardIds) {
         if (cardIds == null || cardIds.isEmpty()) return new ArrayList<>();
@@ -217,9 +265,6 @@ public class CardService {
         if (dto.getFrontContent() != null) {
             entity.setFrontContent(dto.getFrontContent());
         }
-        if (dto.getBackContent() != null) {
-            entity.setBackContent(normalizeEmptyLines(dto.getBackContent()));
-        }
         if (dto.getStartOffset() != null) {
             entity.setStartOffset(dto.getStartOffset());
         }
@@ -237,6 +282,7 @@ public class CardService {
             throw new IllegalArgumentException("无权限删除该卡片");
         }
         cardStructuredContentService.clearStructure(id);
+        cardSourceRepository.deleteByUserIdAndCardId(userId, id);
         cardProgressRepository.findByUserIdAndCardId(userId, id).ifPresent(cardProgressRepository::delete);
         cardRepository.delete(card);
     }
@@ -244,6 +290,7 @@ public class CardService {
     private CardDTO fillAssociations(CardDTO dto, Card entity) {
         dto.setSenses(cardStructuredContentService.loadSensesForCard(entity.getId()));
         dto.setGlobalExtra(cardStructuredContentService.loadGlobalForCard(entity.getId()));
+        applyPrimaryDocumentId(dto, entity.getId(), entity.getUserId());
         cardProgressRepository.findByUserIdAndCardId(entity.getUserId(), entity.getId())
                 .ifPresent(p -> dto.setProgress(CardProgressMapper.toDTO(p)));
         return dto;
@@ -267,10 +314,20 @@ public class CardService {
 
         Map<Long, List<CardSenseDTO>> sensesByCard = cardStructuredContentService.loadSensesBatch(cardIds);
         Map<Long, CardGlobalExtraDTO> globalByCard = cardStructuredContentService.loadGlobalBatch(cardIds);
+        Map<Long, Long> primaryDocByCard = new HashMap<>();
+        List<CardSource> sources = cardSourceRepository.findByUserIdAndCardIdIn(userId, cardIds);
+        sources.sort(Comparator.comparing(CardSource::getGmtCreate, Comparator.nullsLast(LocalDateTime::compareTo)));
+        for (CardSource s : sources) {
+            if (s.getCardId() == null || s.getDocumentId() == null) continue;
+            primaryDocByCard.putIfAbsent(s.getCardId(), s.getDocumentId());
+        }
 
         List<CardDTO> list = new ArrayList<>(cards.size());
         for (Card c : cards) {
             CardDTO dto = CardMapper.toDTO(c, false);
+            if (dto.getDocumentId() == null) {
+                dto.setDocumentId(primaryDocByCard.get(c.getId()));
+            }
             dto.setSenses(sensesByCard.getOrDefault(c.getId(), new ArrayList<>()));
             dto.setGlobalExtra(globalByCard.get(c.getId()));
             CardProgressDTO progress = progressByCardId.get(c.getId());
@@ -278,5 +335,86 @@ public class CardService {
             list.add(dto);
         }
         return list;
+    }
+
+    private static boolean keywordHit(CardDTO c, String k) {
+        if (c == null) return false;
+        if (contains(c.getFrontContent(), k)) return true;
+        if (c.getSenses() != null) {
+            for (CardSenseDTO s : c.getSenses()) {
+                if (s == null) continue;
+                if (contains(s.getTranslationZh(), k) || contains(s.getExplanationEn(), k)
+                        || contains(s.getLabel(), k) || contains(s.getTone(), k)) return true;
+                if (s.getExamples() != null) {
+                    for (CardExampleDTO e : s.getExamples()) {
+                        if (e == null) continue;
+                        if (contains(e.getSentenceEn(), k) || contains(e.getSentenceZh(), k) || contains(e.getScenarioTag(), k)) return true;
+                    }
+                }
+                if (s.getSynonyms() != null) {
+                    for (CardSynonymDTO y : s.getSynonyms()) {
+                        if (y == null) continue;
+                        if (contains(y.getLemma(), k) || contains(y.getNoteZh(), k)) return true;
+                    }
+                }
+            }
+        }
+        CardGlobalExtraDTO g = c.getGlobalExtra();
+        if (g != null) {
+            if (contains(g.getNativeTip(), k) || contains(g.getHighLevelEn(), k) || contains(g.getHighLevelZh(), k)) return true;
+            if (g.getCollocations() != null) {
+                for (String col : g.getCollocations()) {
+                    if (contains(col, k)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean contains(String text, String k) {
+        return text != null && text.toLowerCase().contains(k);
+    }
+
+    private void touchForReview(Long userId, Long cardId) {
+        CardProgress progress = cardProgressRepository.findByUserIdAndCardId(userId, cardId).orElseGet(() -> {
+            CardProgress p = new CardProgress();
+            p.setUserId(userId);
+            p.setCardId(cardId);
+            p.setReviewCount(0);
+            return p;
+        });
+        progress.setNextReviewAt(LocalDateTime.now());
+        cardProgressRepository.save(progress);
+    }
+
+    private void linkSourceIfPresent(Long cardId, CardDTO dto) {
+        if (dto.getDocumentId() == null) return;
+        Integer start = dto.getStartOffset();
+        Integer end = dto.getEndOffset();
+        boolean exists = cardSourceRepository
+                .findFirstByUserIdAndCardIdAndDocumentIdAndStartOffsetAndEndOffset(
+                        dto.getUserId(), cardId, dto.getDocumentId(), start, end)
+                .isPresent();
+        if (exists) return;
+        CardSource source = new CardSource();
+        source.setUserId(dto.getUserId());
+        source.setCardId(cardId);
+        source.setDocumentId(dto.getDocumentId());
+        source.setStartOffset(start);
+        source.setEndOffset(end);
+        cardSourceRepository.save(source);
+    }
+
+    private void applyPrimaryDocumentId(CardDTO dto, Long cardId, Long userId) {
+        if (dto.getDocumentId() != null) return;
+        List<CardSource> sources = cardSourceRepository.findByUserIdAndCardIdIn(userId, java.util.Collections.singleton(cardId));
+        if (sources == null || sources.isEmpty()) return;
+        sources.sort(Comparator.comparing(CardSource::getGmtCreate, Comparator.nullsLast(LocalDateTime::compareTo)));
+        for (CardSource source : sources) {
+            if (source.getDocumentId() != null) {
+                dto.setDocumentId(source.getDocumentId());
+                break;
+            }
+        }
     }
 }

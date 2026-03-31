@@ -7,6 +7,7 @@ import com.english.learn.dto.ReviewRequest;
 import com.english.learn.entity.Card;
 import com.english.learn.entity.CardProgress;
 import com.english.learn.mapper.CardProgressMapper;
+import com.english.learn.repository.CardSourceRepository;
 import com.english.learn.repository.CardProgressRepository;
 import com.english.learn.repository.CardRepository;
 import com.english.learn.util.EbbinghausUtil;
@@ -32,6 +33,7 @@ public class CardProgressService {
 
     private final CardProgressRepository cardProgressRepository;
     private final CardRepository cardRepository;
+    private final CardSourceRepository cardSourceRepository;
 
     /**
      * 提交复习结果，更新熟练度与下次复习时间（艾宾浩斯）。
@@ -96,8 +98,7 @@ public class CardProgressService {
         if (documentId == null || dueIds.isEmpty()) {
             return dueIds;
         }
-        Set<Long> idsInDocument = cardRepository.findByUserIdAndDocumentId(userId, documentId).stream()
-                .map(Card::getId)
+        Set<Long> idsInDocument = cardSourceRepository.findDistinctCardIdsByUserIdAndDocumentId(userId, documentId).stream()
                 .collect(Collectors.toCollection(HashSet::new));
         return dueIds.stream().filter(idsInDocument::contains).collect(Collectors.toList());
     }
@@ -125,8 +126,7 @@ public class CardProgressService {
         if (documentId == null || weakIds.isEmpty()) {
             return weakIds;
         }
-        Set<Long> idsInDocument = cardRepository.findByUserIdAndDocumentId(userId, documentId).stream()
-                .map(Card::getId)
+        Set<Long> idsInDocument = cardSourceRepository.findDistinctCardIdsByUserIdAndDocumentId(userId, documentId).stream()
                 .collect(Collectors.toCollection(HashSet::new));
         return weakIds.stream().filter(idsInDocument::contains).collect(Collectors.toList());
     }

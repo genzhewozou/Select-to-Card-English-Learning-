@@ -150,6 +150,16 @@ export interface CardDTO {
   progress?: CardProgressDTO;
 }
 
+export interface CardSourceDTO {
+  sourceId: number;
+  cardId: number;
+  documentId: number;
+  documentName?: string;
+  startOffset?: number;
+  endOffset?: number;
+  gmtCreate?: string;
+}
+
 export interface QuizQuestionDTO {
   itemId: number;
   sequence: number;

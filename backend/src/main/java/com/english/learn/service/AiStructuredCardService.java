@@ -42,8 +42,8 @@ public class AiStructuredCardService {
             + "    \"synonyms\": [ { \"order\": 1, \"lemma\": \"synonym phrase\" } ]\n"
             + "  } ],\n"
             + "  \"globalSections\": {\n"
-            + "    \"nativeTip\": \"short tip or empty string\",\n"
-            + "    \"highLevelExample\": { \"en\": \"...\", \"zh\": \"...\" }\n"
+            + "    \"nativeTip\": \"optional short tip or empty string\",\n"
+            + "    \"highLevelExample\": { \"en\": \"\", \"zh\": \"\" }\n"
             + "  }\n"
             + "}\n"
             + "Rules:\n"
@@ -53,6 +53,8 @@ public class AiStructuredCardService {
             + "- Keep the examples/synonyms strictly aligned to that one sense; do NOT mix examples/synonyms across senses.\n"
             + "- Each sense should have at least one natural example sentence in English that uses the TARGET exactly as students must recall it (the target is the card front).\n"
             + "- synonyms have NO separate example field.\n"
+            + "- nativeTip is OPTIONAL. If no high-value concise tip, return empty string.\n"
+            + "- For now, DO NOT generate high-level example; set highLevelExample.en and highLevelExample.zh to empty strings.\n"
             + "- Keep JSON compact but complete.";
 
     public Optional<String> generateStructuredJson(String target, String context,
@@ -106,4 +108,5 @@ public class AiStructuredCardService {
         String content = message.getContent().trim();
         return content.isEmpty() ? Optional.empty() : Optional.of(content);
     }
+
 }

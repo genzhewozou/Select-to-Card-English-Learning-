@@ -462,14 +462,15 @@ public class CardStructuredContentService {
         Card card = cardRepository.findById(cardId).orElseThrow(() -> new IllegalArgumentException("卡片不存在"));
         List<CardSenseDTO> senses = loadSensesForCard(cardId);
         CardGlobalExtraDTO global = loadGlobalForCard(cardId);
-        if (senses.isEmpty() && (global == null || isGlobalEmpty(global))) {
+        if (senses.isEmpty()) {
+            // 方案A：背面只保留中英释义摘要；若无义项，背面清空（全局扩展仅保留结构化表中）
+            card.setBackContent("");
+            cardRepository.save(card);
             return;
         }
         String assembled = CardBackContentAssembler.assemble(card.getFrontContent(), senses, global);
-        if (!assembled.isEmpty()) {
-            card.setBackContent(assembled);
-            cardRepository.save(card);
-        }
+        card.setBackContent(assembled);
+        cardRepository.save(card);
     }
 
     private static boolean isGlobalEmpty(CardGlobalExtraDTO g) {
